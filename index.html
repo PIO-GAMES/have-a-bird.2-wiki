@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Have a Bird 2 Wiki</title>
+    <!-- Librerías de Three.js para modelos 3D y fondos 360 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -17,6 +18,7 @@
             --box-bg: #f8f9fa;
             --hover-bg: #eaecf0;
         }
+
         body { font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 0; line-height: 1.6; }
         header { border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; }
         h1 { font-size: 1.8rem; margin: 0; font-weight: normal; }
@@ -28,6 +30,8 @@
         sidebar h3 { font-size: 0.85rem; text-transform: uppercase; color: #54595d; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-top: 15px; }
         sidebar ul { list-style: none; padding: 0; margin: 0 0 15px 0; min-height: 20px; }
         sidebar li { margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid transparent; padding: 2px 4px; cursor: grab; }
+        sidebar li:active { cursor: grabbing; }
+        sidebar li.drag-over { border: 1px dashed var(--link-color); background: #eaf3ff; }
         sidebar a { color: var(--link-color); text-decoration: none; cursor: pointer; display: block; padding: 3px 6px; flex-grow: 1; }
         sidebar a:hover { text-decoration: underline; }
         main { flex-grow: 1; padding: 30px; max-width: 900px; box-sizing: border-box; }
@@ -53,25 +57,46 @@
         .rarity-category-group { margin-bottom: 20px; border: 1px solid var(--border-color); background: #fff; }
         .rarity-category-header { padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; color: #ffffff !important; }
         .rarity-category-body { padding: 15px; border-top: 1px solid var(--border-color); background: #fafafa; }
+        .rarity-category-body.collapsed { display: none; }
         .post-card { border: 1px solid var(--border-color); padding: 20px; margin-bottom: 15px; background: #fff; display: flex; justify-content: space-between; gap: 20px; }
         .post-left { flex-grow: 1; }
         .post-right { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
         .media-container { width: 100%; height: 200px; border: 1px solid var(--border-color); background: #000; position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        .media-container img { width: 100%; height: 100%; object-fit: contain; }
+        .media-container img, .media-container video, .media-container canvas { width: 100%; height: 100%; object-fit: contain; }
+        .fullscreen-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(255,255,255,0.8); border: 1px solid #72777d; padding: 2px 6px; font-size: 0.75rem; cursor: pointer; z-index: 10; }
+        .fullscreen-btn:hover { background: #fff; }
+        .media-container:fullscreen, .media-container:-webkit-full-screen { width: 100vw !important; height: 100vh !important; background: #000; }
+        .link-preview-card { border: 1px solid var(--border-color); background: var(--box-bg); padding: 12px; margin-top: 15px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: inherit; }
+        .link-preview-card:hover { background: var(--hover-bg); }
+        .link-header { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #54595d; }
+        .link-header img { width: 16px; height: 16px; object-fit: contain; }
+        .link-body { display: flex; align-items: center; gap: 12px; }
+        .link-body img.thumb { width: 80px; height: 50px; object-fit: cover; border: 1px solid var(--border-color); flex-shrink: 0; }
+        .link-title { font-weight: bold; color: var(--link-color); font-size: 0.95rem; }
         .preview-container { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px; border: 1px dashed var(--border-color); background: #fff; font-size: 0.85rem; }
+        .preview-container img, .preview-container video { width: 60px; height: 60px; object-fit: cover; border: 1px solid var(--border-color); }
         .btn-remove-file { background: #ba0000; color: white; border: none; padding: 2px 6px; font-weight: bold; cursor: pointer; border-radius: 3px; }
-        .rarity-badge, .zone-badge { display: inline-block; padding: 4px 10px; font-weight: bold; border-radius: 3px; font-size: 0.9rem; color: #ffffff !important; }
-        .rarity-item, .zone-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border-color); background: #fff; margin-bottom: 5px; }
+        .rarity-badge { display: inline-block; padding: 4px 10px; font-weight: bold; border-radius: 3px; font-size: 0.9rem; color: #ffffff !important; }
+        .rarity-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border-color); background: #fff; margin-bottom: 5px; cursor: grab; }
         .admin-controls { margin-top: 15px; padding: 15px; border: 1px dashed var(--border-color); background-color: #fff; }
+        @keyframes rarityRotateAnim { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+        @keyframes rarityFallAnim { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
     </style>
 </head>
 <body>
 
     <div id="auth-modal" class="modal-overlay">
         <div class="auth-container">
-            <h2>Iniciar Sesión</h2>
-            <div class="form-group"><label>Usuario:</label><input type="text" id="username-input"></div>
-            <div class="form-group"><label>Contraseña:</label><input type="password" id="password-input"></div>
+            <h2>Iniciar Sesión / Cuenta</h2>
+            <p style="font-size: 0.85rem; color: #54595d;">Introduce tu usuario. Solo <strong>MrPhoenixWiki</strong> tiene privilegios de administrador.</p>
+            <div class="form-group">
+                <label for="username-input">Usuario:</label>
+                <input type="text" id="username-input" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="password-input">Contraseña:</label>
+                <input type="password" id="password-input" autocomplete="current-password">
+            </div>
             <div style="display: flex; gap: 10px;">
                 <button class="primary" onclick="submitAuthModal()">Acceder</button>
                 <button onclick="closeAuthModal()">Cancelar</button>
@@ -99,11 +124,12 @@
                     </div>
                     <h3 style="margin-top:0;">Sistema</h3>
                     <ul>
-                        <li><a onclick="openAuthModal()">Iniciar Sesión</a></li>
-                        <li><a onclick="logoutAnonymous()" style="color: #ba0000;">Cerrar Sesión</a></li>
+                        <li><a onclick="openAuthModal()">Iniciar Sesión / Cambiar Cuenta</a></li>
+                        <li><a onclick="logoutAnonymous()" style="color: #ba0000;">Cambiar a Anónimo</a></li>
                     </ul>
                 </div>
             </sidebar>
+
             <main id="main-content-area"></main>
         </div>
     </div>
@@ -113,53 +139,60 @@
             users: [{ username: "MrPhoenixWiki", password: "787878", isAdmin: true }],
             currentUser: { username: "MrPhoenixWiki", password: "787878", isAdmin: true },
             rarities: [
-                { name: "Común", style: "#d4baa0" }, { name: "InComun", style: "#bbff4b" },
-                { name: "Rare", style: "#0070dd" }, { name: "Épic", style: "#a335ee" },
-                { name: "Legendary", style: "#eeff8c" }, { name: "Mythic", style: "#ed1c24" },
-                { name: "Good Bird", style: "#ff7f27" }, { name: "Secret", style: "#000000" },
-                { name: "Divine", style: "#6500cb" }, { name: "Ultra Galactic", style: "#45007a" },
-                { name: "Digital", style: "#00e400" }, { name: "Admin", style: "#ff0000" },
-                { name: "Hallowen", style: "#ff7f27" }, { name: "Pascua", style: "#b97a57" },
-                { name: "Cristmas", style: "#00e400" }, { name: "San Valentin", style: "#ffaec9" },
-                { name: "New Year", style: "#a349a4" }
-            ],
-            zones: [
-                { name: "Zona 1", style: "#717171" },
-                { name: "Zona 2", style: "#00a2e8" }
+                { name: "Común", style: "#d4baa0", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" },
+                { name: "InComun", style: "#bbff4b", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" },
+                { name: "Rare", style: "#0070dd", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" },
+                { name: "Épic", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" },
+                { name: "Legendary", style: "linear-gradient(0deg, #eeff8c 0%, #ffffff 100%)", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" },
+                { name: "Mythic", style: "#ed1c24", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" }
             ],
             categories: [{ id: "nav", name: "Navegación" }, { id: "sys", name: "Sistema" }],
             sections: [
                 { id: "como-se-juega", name: "Como se juega", type: "single", catId: "nav" },
                 { id: "pajaros", name: "Pájaros", type: "posts", catId: "nav" },
                 { id: "eventos", name: "Eventos", type: "single", catId: "nav" },
+                { id: "zonas", name: "Zonas", type: "single", catId: "nav" },
                 { id: "info-juego", name: "Información del juego", type: "single", catId: "nav" },
-                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" },
-                { id: "zonas", name: "Zonas", type: "zones", catId: "sys" }
+                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" }
             ],
             posts: { "pajaros": [] },
             singleContent: {
-                "como-se-juega": { title: "Como se juega", text: "Información inicial...", media: null, mediaType: null },
-                "eventos": { title: "Eventos", text: "Próximos eventos...", media: null, mediaType: null },
-                "info-juego": { title: "Información del juego", text: "Detalles...", media: null, mediaType: null }
+                "como-se-juega": { title: "Como se juega", text: "Información inicial...", media: null, mediaType: null, bg360: null, linkUrl: "" },
+                "eventos": { title: "Eventos", text: "Próximos eventos del juego...", media: null, mediaType: null, bg360: null, linkUrl: "" },
+                "zonas": { title: "Zonas", text: "Información sobre las zonas del juego...", media: null, mediaType: null, bg360: null, linkUrl: "" },
+                "info-juego": { title: "Información del juego", text: "Detalles sobre el desarrollo...", media: null, mediaType: null, bg360: null, linkUrl: "" }
             }
         };
 
-        let activeMediaData = {}, activeRarityFilters = {}, activeFormState = { type: null, rarity: null, editIndex: -1 };
+        let activeMediaData = {}, threeInstances = {}, activeRarityFilters = {}, collapsedCategories = {};
+        let activeFormState = { type: null, rarity: null, editIndex: -1 };
         let currentSortMode = 'rarity';
 
         function loadDB() {
             let data = null;
-            const savedGlobal = localStorage.getItem('have_a_bird_wiki_global_db_v1');
+            const globalKey = 'have_a_bird_wiki_global_db_v1';
+            const savedGlobal = localStorage.getItem(globalKey);
             if (savedGlobal) { try { data = JSON.parse(savedGlobal); } catch(e){} }
-            if (!data) data = defaultData;
-            if (!data.zones) data.zones = defaultData.zones;
+            if (!data) { data = defaultData; } else {
+                if (!data.categories) data.categories = defaultData.categories;
+                if (!data.sections) data.sections = defaultData.sections;
+                if (!data.posts) data.posts = defaultData.posts;
+                if (!data.singleContent) data.singleContent = defaultData.singleContent;
+                if (!data.rarities) data.rarities = defaultData.rarities;
+                if (!data.users) data.users = defaultData.users;
+            }
             data.currentUser = { username: "MrPhoenixWiki", password: "787878", isAdmin: true };
             saveDB(data);
             return data;
         }
 
         function saveDB(data) {
-            localStorage.setItem('have_a_bird_wiki_global_db_v1', JSON.stringify(data));
+            try {
+                localStorage.setItem('have_a_bird_wiki_global_db_v1', JSON.stringify(data));
+                if (data.currentUser) {
+                    localStorage.setItem('have_a_bird_active_user', JSON.stringify(data.currentUser));
+                }
+            } catch (e) { alert('El archivo es demasiado pesado.'); }
         }
 
         let db = loadDB();
@@ -172,7 +205,9 @@
             if (userIn === "MrPhoenixWiki" && passIn === "787878") {
                 db.currentUser = { username: userIn, password: passIn, isAdmin: true };
                 saveDB(db); closeAuthModal(); initApp();
-            } else { document.getElementById('auth-error').innerText = "Datos incorrectos."; }
+            } else {
+                document.getElementById('auth-error').innerText = "Contraseña incorrecta.";
+            }
         }
         function logoutAnonymous() {
             db.currentUser = { username: "Anónimo", password: "", isAdmin: false };
@@ -198,9 +233,52 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-top: 15px;">
                         <h3 style="margin:0; border:none; padding:0;">${cat.name}</h3>${catDeleteBtn}
                     </div>
-                    <ul>${catSections.map(sec => `<li><a onclick="switchSection('${sec.id}')">${sec.name}</a></li>`).join('')}</ul>
+                    <ul>${catSections.map(sec => {
+                        let secDeleteBtn = (isAdmin && sec.id !== 'rarezas' && sec.id !== 'zonas') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
+                        return `<li><a onclick="switchSection('${sec.id}')">${sec.name}</a>${secDeleteBtn}</li>`;
+                    }).join('')}</ul>
                 `;
             }).join('');
+        }
+
+        function openCreateCategoryModal() {
+            const name = prompt("Nombre de la nueva categoría:");
+            if (!name) return;
+            const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            db.categories.push({ id, name }); saveDB(db); renderSidebar();
+        }
+
+        function deleteCategory(catId) {
+            if (confirm("¿Borrar categoría?")) {
+                db.sections = db.sections.filter(s => s.catId !== catId);
+                db.categories = db.categories.filter(c => c.id !== catId);
+                saveDB(db); renderSidebar();
+                if (db.sections.length > 0) switchSection(db.sections[0].id);
+            }
+        }
+
+        function openCreateSectionModal() {
+            const name = prompt("Nombre de la nueva sección:");
+            if (!name) return;
+            let catOptions = db.categories.map(c => `${c.name} (${c.id})`).join(', ');
+            const catChoice = prompt(`¿A qué categoría pertenece? Escribe el ID (${catOptions}):`);
+            if (!db.categories.some(c => c.id === catChoice)) return;
+            const typeChoice = prompt("¿Tipo? 'posts' o 'single'").toLowerCase().trim();
+            if (typeChoice !== 'posts' && typeChoice !== 'single') return;
+            const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            db.sections.push({ id, name, type: typeChoice, catId: catChoice });
+            if (typeChoice === 'posts') db.posts[id] = [];
+            else db.singleContent[id] = { title: name, text: "Contenido...", media: null, mediaType: null, bg360: null, linkUrl: "" };
+            saveDB(db); renderSidebar(); switchSection(id);
+        }
+
+        function deleteSection(sectionId) {
+            if (confirm("¿Eliminar sección?")) {
+                db.sections = db.sections.filter(s => s.id !== sectionId);
+                delete db.posts[sectionId]; delete db.singleContent[sectionId];
+                saveDB(db); renderSidebar();
+                if (db.sections.length > 0) switchSection(db.sections[0].id);
+            }
         }
 
         function switchSection(sectionId) {
@@ -208,57 +286,79 @@
             if (!sec) return;
             const mainArea = document.getElementById('main-content-area');
             if (sec.type === 'rarities') {
-                mainArea.innerHTML = `<h2>Rarezas</h2><div id="rarities-list"></div>` + (db.currentUser?.isAdmin ? `
-                    <div class="admin-controls">
-                        <h3>Añadir Rareza</h3>
-                        <div class="form-group"><label>Nombre:</label><input type="text" id="rz-name"></div>
-                        <div class="form-group"><label>Color o Gradiente:</label><input type="text" id="rz-style"></div>
-                        <button class="primary" onclick="saveRarity()">Guardar Rareza</button>
-                    </div>` : '');
+                mainArea.innerHTML = renderRaritiesSection();
                 renderRaritiesList();
-            } else if (sec.type === 'zones') {
-                mainArea.innerHTML = `<h2>Zonas</h2><div id="zones-list"></div>` + (db.currentUser?.isAdmin ? `
-                    <div class="admin-controls">
-                        <h3>Añadir Zona</h3>
-                        <div class="form-group"><label>Nombre de Zona:</label><input type="text" id="zn-name"></div>
-                        <div class="form-group"><label>Color o Gradiente:</label><input type="text" id="zn-style"></div>
-                        <button class="primary" onclick="saveZone()">Guardar Zona</button>
-                    </div>` : '');
-                renderZonesList();
             } else if (sec.type === 'single') {
-                mainArea.innerHTML = `<h2>${sec.name}</h2><div id="single-display-${sec.id}"></div>`;
+                mainArea.innerHTML = renderSingleSection(sec);
                 renderSingleContent(sec.id);
             } else if (sec.type === 'posts') {
                 if (sectionId === 'pajaros') {
                     db.rarities.forEach(r => { if (activeRarityFilters[r.name] === undefined) activeRarityFilters[r.name] = true; });
-                    mainArea.innerHTML = `
-                        <h2>Pájaros</h2>
-                        <div class="search-box">
-                            <input type="text" id="search-pajaros" placeholder="Buscar pájaro..." oninput="renderPajaros()">
-                            <select id="sort-mode-select" onchange="changeSortMode(this.value)">
-                                <option value="rarity">Ordenar por Rareza</option>
-                                <option value="zone">Ordenar por Zona</option>
-                                <option value="money-asc">Dinero: Menor a Mayor</option>
-                                <option value="money-desc">Dinero: Mayor a Menor</option>
-                            </select>
-                        </div>
-                        <div class="rarity-filter-bar">
-                            <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                                <strong>Filtrar por Rarezas:</strong>
-                                <div>
-                                    <button onclick="setAllRarityFilters(true)">Seleccionar todas</button>
-                                    <button onclick="setAllRarityFilters(false)">Deseleccionar todas</button>
-                                </div>
-                            </div>
-                            <div id="rarity-checkboxes-container" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
-                        </div>
-                        <div id="posts-pajaros"></div>
-                    `;
-                    document.getElementById('sort-mode-select').value = currentSortMode;
+                    mainArea.innerHTML = renderPajarosSection();
                     activeFormState = { type: null, rarity: null, editIndex: -1 };
                     renderPajaros();
+                } else {
+                    mainArea.innerHTML = renderGenericPostsSection(sec);
+                    renderGenericPosts(sec.id);
                 }
             }
+        }
+
+        function renderSingleSection(sec) {
+            const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
+            let adminForm = isAdmin ? `
+                <div class="admin-controls">
+                    <h3>Editar Contenido de ${sec.name}</h3>
+                    <div class="form-group"><label>Título:</label><input type="text" id="single-title-${sec.id}"></div>
+                    <div class="form-group"><label>Texto / Contenido:</label><textarea id="single-text-${sec.id}" rows="5"></textarea></div>
+                    <div class="form-group"><label>Multimedia:</label><input type="file" id="single-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="single-preview-${sec.id}"></div></div>
+                    <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="single-link-${sec.id}" placeholder="https://..."></div>
+                    <button class="primary" onclick="saveSingleContent('${sec.id}')">Guardar Cambios</button>
+                </div>
+            ` : '';
+            return `<section class="section-content active"><h2>${sec.name}</h2><div id="single-display-${sec.id}"></div>${adminForm}</section>`;
+        }
+
+        function renderGenericPostsSection(sec) {
+            const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
+            let adminForm = isAdmin ? `
+                <div class="admin-controls">
+                    <h3 id="form-title-${sec.id}">Añadir Post en ${sec.name}</h3>
+                    <div class="form-group"><label>Título:</label><input type="text" id="post-title-${sec.id}"></div>
+                    <div class="form-group"><label>Contenido:</label><textarea id="post-text-${sec.id}" rows="4"></textarea></div>
+                    <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
+                    <button class="primary" onclick="saveGenericPost('${sec.id}')">Publicar</button>
+                </div>
+            ` : '';
+            return `<section class="section-content active"><h2>${sec.name}</h2><div id="posts-container-${sec.id}"></div>${adminForm}</section>`;
+        }
+
+        function renderPajarosSection() {
+            return `
+                <section class="section-content active">
+                    <h2>Pájaros</h2>
+                    <div class="search-box">
+                        <input type="text" id="search-pajaros" placeholder="Buscar pájaro por nombre..." oninput="renderPajaros()">
+                        <select id="sort-mode-select" onchange="changeSortMode(this.value)">
+                            <option value="rarity">Ordenar por Rareza</option>
+                            <option value="zone">Ordenar por Zona</option>
+                            <option value="money-asc">Dinero: Menor a Mayor</option>
+                            <option value="money-desc">Dinero: Mayor a Menor</option>
+                        </select>
+                    </div>
+                    <div class="rarity-filter-bar">
+                        <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <strong>Filtrar por Rarezas:</strong>
+                            <div>
+                                <button onclick="setAllRarityFilters(true)">Seleccionar todas</button>
+                                <button onclick="setAllRarityFilters(false)">Deseleccionar todas</button>
+                            </div>
+                        </div>
+                        <div id="rarity-checkboxes-container" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                    </div>
+                    <div id="posts-pajaros"></div>
+                </section>
+            `;
         }
 
         function changeSortMode(mode) {
@@ -266,31 +366,44 @@
             renderPajaros();
         }
 
-        function setAllRarityFilters(val) {
-            db.rarities.forEach(r => { activeRarityFilters[r.name] = val; });
-            renderPajaros();
-        }
-
         function previewFileCustom(sectionId) {
-            const fileInput = document.getElementById('pj-media-file');
+            const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
+            const fileInput = document.getElementById(fileInputId);
+            const previewAreaId = sectionId === 'pajaros' ? 'pj-preview-area' : (sectionId.startsWith('single-') ? `single-preview-${sectionId}` : `post-preview-${sectionId}`);
             if (fileInput && fileInput.files && fileInput.files[0]) {
                 const file = fileInput.files[0];
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     activeMediaData[sectionId] = { data: e.target.result, type: file.type, name: file.name };
-                    document.getElementById('pj-preview-area').innerHTML = `<div class="preview-container"><img src="${e.target.result}" style="width:60px;height:60px;object-fit:cover;"><span>${file.name}</span><button class="btn-remove-file" onclick="activeMediaData['pajaros']=null;document.getElementById('pj-preview-area').innerHTML=''">X</button></div>`;
+                    document.getElementById(previewAreaId).innerHTML = `<div class="preview-container"><img src="${e.target.result}" style="width:60px;height:60px;object-fit:cover;"><span>${file.name}</span><button class="btn-remove-file" onclick="activeMediaData['${sectionId}']=null;document.getElementById('${previewAreaId}').innerHTML=''">X</button></div>`;
                 };
                 reader.readAsDataURL(file);
             }
         }
 
+        function renderRaritiesSection() {
+            const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
+            let adminForm = isAdmin ? `
+                <div class="admin-controls">
+                    <h3 id="rarity-form-title">Crear / Editar Rareza</h3>
+                    <input type="hidden" id="rz-edit-index" value="-1">
+                    <div class="form-group"><label>Nombre:</label><input type="text" id="rz-name"></div>
+                    <div class="form-group"><label>Estilo (Color o Gradiente CSS):</label><input type="text" id="rz-style"></div>
+                    <button class="primary" onclick="saveRarity()">Guardar Rareza</button>
+                    <button id="rz-cancel-btn" onclick="cancelEditRarity()" style="display:none;">Cancelar</button>
+                </div>
+            ` : '';
+            return `<section class="section-content active"><h2>Rarezas</h2><div id="rarities-list"></div>${adminForm}</section>`;
+        }
+
         function renderRaritiesList() {
             const container = document.getElementById('rarities-list');
+            const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
             if(!container) return;
             container.innerHTML = db.rarities.map((r, i) => `
                 <div class="rarity-item">
                     <span class="rarity-badge" style="background:${r.style};">${i+1}. ${r.name}</span>
-                    ${db.currentUser?.isAdmin ? `<button class="danger" onclick="deleteRarity(${i})">Eliminar</button>` : ''}
+                    ${isAdmin ? `<div><button onclick="startEditRarity(${i})">Editar</button><button class="danger" onclick="deleteRarity(${i})">Eliminar</button></div>` : ''}
                 </div>
             `).join('');
         }
@@ -298,38 +411,66 @@
         function saveRarity() {
             const name = document.getElementById('rz-name').value;
             const style = document.getElementById('rz-style').value;
+            const editIdx = parseInt(document.getElementById('rz-edit-index').value);
             if (!name || !style) return;
-            db.rarities.push({ name, style });
-            saveDB(db); renderRaritiesList();
+            const rObj = { name, style, strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" };
+            if (editIdx >= 0) db.rarities[editIdx] = rObj;
+            else db.rarities.push(rObj);
+            saveDB(db); cancelEditRarity(); renderRaritiesList();
+        }
+
+        function startEditRarity(idx) {
+            const r = db.rarities[idx];
+            document.getElementById('rz-edit-index').value = idx;
+            document.getElementById('rz-name').value = r.name;
+            document.getElementById('rz-style').value = r.style;
+            document.getElementById('rarity-form-title').innerText = 'Editar Rareza: ' + r.name;
+            document.getElementById('rz-cancel-btn').style.display = 'inline-block';
+        }
+
+        function cancelEditRarity() {
+            document.getElementById('rz-edit-index').value = -1;
+            document.getElementById('rz-name').value = '';
+            document.getElementById('rz-style').value = '';
+            document.getElementById('rarity-form-title').innerText = 'Crear / Editar Rareza';
+            document.getElementById('rz-cancel-btn').style.display = 'none';
         }
 
         function deleteRarity(idx) { db.rarities.splice(idx, 1); saveDB(db); renderRaritiesList(); }
 
-        function renderZonesList() {
-            const container = document.getElementById('zones-list');
-            if(!container) return;
-            container.innerHTML = db.zones.map((z, i) => `
-                <div class="zone-item">
-                    <span class="zone-badge" style="background:${z.style};">${i+1}. ${z.name}</span>
-                    ${db.currentUser?.isAdmin ? `<button class="danger" onclick="deleteZone(${i})">Eliminar</button>` : ''}
-                </div>
-            `).join('');
+        function generateMediaHTML(mediaData, mediaType, uniqueId) {
+            if (!mediaData) return '';
+            if (mediaType && mediaType.startsWith('video')) {
+                return `<div class="media-container" id="media-box-${uniqueId}"><video src="${mediaData}" controls></video><button class="fullscreen-btn" onclick="toggleFullscreen('media-box-${uniqueId}')">Pantalla Completa</button></div>`;
+            } else {
+                return `<div class="media-container" id="media-box-${uniqueId}"><img src="${mediaData}"><button class="fullscreen-btn" onclick="toggleFullscreen('media-box-${uniqueId}')">Pantalla Completa</button></div>`;
+            }
         }
 
-        function saveZone() {
-            const name = document.getElementById('zn-name').value;
-            const style = document.getElementById('zn-style').value;
-            if (!name || !style) return;
-            db.zones.push({ name, style });
-            saveDB(db); renderZonesList();
+        function toggleFullscreen(id) {
+            const c = document.getElementById(id);
+            if (!document.fullscreenElement) c.requestFullscreen?.();
+            else document.exitFullscreen?.();
         }
-
-        function deleteZone(idx) { db.zones.splice(idx, 1); saveDB(db); renderZonesList(); }
 
         function renderSingleContent(sectionId) {
-            if (!db.singleContent[sectionId]) db.singleContent[sectionId] = { title: "Nuevo", text: "", media: null };
+            if (!db.singleContent[sectionId]) db.singleContent[sectionId] = { title: "Nuevo", text: "", media: null, mediaType: null, linkUrl: "" };
             const item = db.singleContent[sectionId];
-            document.getElementById(`single-display-${sectionId}`).innerHTML = `<h3>${item.title}</h3><p>${item.text}</p>`;
+            const container = document.getElementById(`single-display-${sectionId}`);
+            if (!container) return;
+            container.innerHTML = `<div class="post-card"><div class="post-left"><h3 style="margin-top:0;">${item.title}</h3><p style="white-space: pre-wrap;">${item.text}</p></div><div class="post-right">${generateMediaHTML(item.media, item.mediaType, `single-${sectionId}`)}</div></div>`;
+            document.getElementById(`single-title-${sectionId}`).value = item.title;
+            document.getElementById(`single-text-${sectionId}`).value = item.text;
+        }
+
+        function saveSingleContent(sectionId) {
+            const title = document.getElementById(`single-title-${sectionId}`).value;
+            const text = document.getElementById(`single-text-${sectionId}`).value;
+            const linkUrl = document.getElementById(`single-link-${sectionId}`).value;
+            let media = db.singleContent[sectionId]?.media, mediaType = db.singleContent[sectionId]?.mediaType;
+            if (activeMediaData[sectionId]) { media = activeMediaData[sectionId].data; mediaType = activeMediaData[sectionId].type; }
+            db.singleContent[sectionId] = { title, text, media, mediaType, linkUrl };
+            saveDB(db); renderSingleContent(sectionId); alert("Guardado!");
         }
 
         function toggleAddForm(rarityName) {
@@ -346,24 +487,19 @@
         }
 
         function renderDynamicPajaroForm(isEditing, targetRarity, editIndex) {
-            let pData = { title: '', zone: db.zones[0]?.name || '', money: '', text: '', rarity: targetRarity || db.rarities[0]?.name || '' };
-            if (isEditing && editIndex >= 0) {
-                pData = db.posts['pajaros'][editIndex];
-            }
+            let pData = { title: '', zone: 'Zona 1', money: '', text: '', rarity: targetRarity || db.rarities[0]?.name || '' };
+            if (isEditing && editIndex >= 0) pData = db.posts['pajaros'][editIndex];
+
             return `
                 <div class="admin-controls" style="border: 2px solid #36c; margin-top: 10px;">
                     <h3>${isEditing ? 'Editar Pájaro' : 'Añadir Pájaro en ' + targetRarity}</h3>
                     <div class="form-group"><label>Nombre:</label><input type="text" id="dyn-pj-title" value="${pData.title}"></div>
-                    <div class="form-group"><label>Zona:</label>
-                        <select id="dyn-pj-zone">
-                            ${db.zones.map(z => `<option value="${z.name}" ${pData.zone === z.name ? 'selected' : ''}>${z.name}</option>`).join('')}
-                        </select>
-                    </div>
+                    <div class="form-group"><label>Zona:</label><input type="text" id="dyn-pj-zone" value="${pData.zone || 'Zona 1'}" placeholder="Ej: Zona 1"></div>
                     <div class="form-group"><label>Dinero ($/sec):</label><input type="text" id="dyn-pj-money" value="${pData.money || ''}"></div>
                     <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="3">${pData.text}</textarea></div>
                     <div class="form-group"><label>Imagen:</label><input type="file" id="pj-media-file" accept="image/*" onchange="previewFileCustom('pajaros')"><div id="pj-preview-area"></div></div>
                     <div style="display:flex; gap:10px;">
-                        <button class="primary" onclick="saveDynamicPajaro(${isEditing ? editIndex : -1})">Guardar Pájaro</button>
+                        <button class="primary" onclick="saveDynamicPajaro(${isEditing ? editIndex : -1})">Guardar</button>
                         <button onclick="activeFormState = {type: null, rarity: null, editIndex: -1}; renderPajaros();">Cancelar</button>
                     </div>
                 </div>
@@ -372,7 +508,7 @@
 
         function saveDynamicPajaro(editIndex) {
             const title = document.getElementById('dyn-pj-title').value;
-            const zone = document.getElementById('dyn-pj-zone').value;
+            const zone = document.getElementById('dyn-pj-zone').value || 'Zona 1';
             const money = document.getElementById('dyn-pj-money').value;
             const text = document.getElementById('dyn-pj-text').value;
             if (!title || !money || !text) return;
@@ -387,9 +523,8 @@
             }
 
             const pajaroObj = { title, rarity, zone, money, text, media, mediaType };
-            if (editIndex >= 0) {
-                db.posts['pajaros'][editIndex] = pajaroObj;
-            } else {
+            if (editIndex >= 0) db.posts['pajaros'][editIndex] = pajaroObj;
+            else {
                 if(!db.posts['pajaros']) db.posts['pajaros'] = [];
                 db.posts['pajaros'].push(pajaroObj);
             }
@@ -452,7 +587,6 @@
                         rPosts.map(p => {
                             let originalIdx = posts.indexOf(p);
                             let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
-                            let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
                             let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, rObj.name, originalIdx) : '';
                             let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${originalIdx})">Editar</button><button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button></div>` : '';
                             
@@ -460,7 +594,7 @@
                                 <div class="post-card">
                                     <div class="post-left">
                                         <h3 style="margin-top:0;">${p.title}</h3>
-                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
+                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> ${p.zone || 'Zona 1'}</p>
                                         <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                         <p>${p.text}</p>
                                         ${adminButtons}
@@ -481,8 +615,11 @@
                     `;
                 });
             } else if (currentSortMode === 'zone') {
-                db.zones.forEach((zObj) => {
-                    let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zObj.name);
+                let zonesSet = [...new Set(posts.map(p => p.zone || 'Zona 1'))];
+                if(zonesSet.length === 0) zonesSet = ['Zona 1'];
+
+                zonesSet.forEach((zoneName) => {
+                    let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zoneName);
                     if (searchVal) zPosts = zPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                     zPosts = zPosts.filter(p => activeRarityFilters[p.rarity] !== false);
                     zPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
@@ -499,7 +636,7 @@
                                 <div class="post-card">
                                     <div class="post-left">
                                         <h3 style="margin-top:0;">${p.title}</h3>
-                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zObj.style};">${zObj.name}</span></p>
+                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> ${zoneName}</p>
                                         <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                         <p>${p.text}</p>
                                         ${adminButtons}
@@ -512,8 +649,8 @@
 
                     htmlOutput += `
                         <div class="rarity-category-group">
-                            <div class="rarity-category-header" style="background: ${zObj.style};">
-                                <span>Zona: ${zObj.name} (${zPosts.length})</span>
+                            <div class="rarity-category-header" style="background: #36c;">
+                                <span>Zona: ${zoneName} (${zPosts.length})</span>
                             </div>
                             <div class="rarity-category-body">${contentHtml}</div>
                         </div>
@@ -535,7 +672,6 @@
                         let originalIdx = posts.indexOf(p);
                         let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
                         let rObj = db.rarities.find(r => r.name === p.rarity) || { style: '#717171' };
-                        let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
                         let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, null, originalIdx) : '';
                         let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${originalIdx})">Editar</button><button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button></div>` : '';
 
@@ -543,7 +679,7 @@
                             <div class="post-card">
                                 <div class="post-left">
                                     <h3 style="margin-top:0;">${p.title}</h3>
-                                    <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
+                                    <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> ${p.zone || 'Zona 1'}</p>
                                     <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                     <p>${p.text}</p>
                                     ${adminButtons}
