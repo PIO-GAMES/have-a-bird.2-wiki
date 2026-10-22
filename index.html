@@ -1808,7 +1808,27 @@
             }).join('');
         }
 
-        // CORRECCIÓN: MOSTRAR SIEMPRE TODAS LAS RAREZAS AUNQUE NO TENGAN PÁJAROS
+        // CONVERSOR DE SUFIJOS DE DINERO (K, M, B, T, Qa, Qi, Sx, Spt, Oct, Nv, Dc, Ud, Dd, Td, Qad, Qid, Sxd, Spd, Ocd, Nvd, Vc)
+        function parseMoneyValue(moneyStr) {
+            if (!moneyStr) return 0;
+            let clean = moneyStr.toString().replace(/[$,\s\/sec]/gi, '').trim();
+            const suffixes = ["k", "m", "b", "t", "qa", "qi", "sx", "spt", "oct", "nv", "dc", "ud", "dd", "td", "qad", "qid", "sxd", "spd", "ocd", "nvd", "vc"];
+            
+            let multiplier = 1;
+            let lowerClean = clean.toLowerCase();
+            
+            for (let i = 0; i < suffixes.length; i++) {
+                let suf = suffixes[i];
+                if (lowerClean.endsWith(suf)) {
+                    multiplier = Math.pow(10, (i + 1) * 3);
+                    clean = clean.substring(0, clean.length - suf.length);
+                    break;
+                }
+            }
+            let num = parseFloat(clean);
+            return isNaN(num) ? 0 : num * multiplier;
+        }
+
         function renderPajaros() {
             renderRarityCheckboxes();
             const container = document.getElementById('posts-pajaros');
@@ -1819,14 +1839,14 @@
             db.rarities.forEach((rObj) => {
                 let rPosts = posts.filter(p => p.rarity === rObj.name);
 
-                // Filtrar por buscador si hay texto escrito
                 if (searchVal) {
                     rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                 }
 
+                // ORDENAMIENTO CORREGIDO DE MENOR A MAYOR USANDO EL CONVERSOR DE SUFIJOS
                 rPosts.sort((a, b) => {
-                    let valA = parseFloat(a.money) || 0;
-                    let valB = parseFloat(b.money) || 0;
+                    let valA = parseMoneyValue(a.money);
+                    let valB = parseMoneyValue(b.money);
                     return valA - valB;
                 });
 
