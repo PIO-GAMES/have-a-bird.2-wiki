@@ -549,6 +549,8 @@
                     <div id="admin-creators" style="display:none; flex-direction:column; gap:8px; margin-bottom: 10px;">
                         <button class="primary" style="width: 100%;" onclick="openCreateCategoryModal()">+ Crear Categoría</button>
                         <button class="primary" style="width: 100%;" onclick="openCreateSectionModal()">+ Crear Sección</button>
+                        <!-- BOTÓN MÁGICO EXCLUSIVO PARA COPIAR DATOS A LA IA -->
+                        <button class="primary" style="width: 100%; background: #28a745; border-color: #28a745;" onclick="exportDataForAI()">📋 Copiar Datos para la IA</button>
                     </div>
                     <h3 style="margin-top:0;">Sistema</h3>
                     <ul>
@@ -666,6 +668,18 @@
         }
 
         let db = loadDB();
+
+        // FUNCIÓN DEL BOTÓN MÁGICO PARA COPIAR LOS DATOS AL PORTAPAPELES
+        function exportDataForAI() {
+            const dataStr = JSON.stringify(db, null, 2);
+            const textToCopy = "AQUÍ ESTÁ MI DATASTORE ACTUALIZADO DE LA WIKI PARA QUE LO INCORpores EN EL CÓDIGO:\n\n```json\n" + dataStr + "\n```";
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert("¡Datos copiados al portapapeles con éxito!\n\nAhora solo ven al chat con la IA y presiona Pegar (Ctrl + V).");
+            }).catch(err => {
+                prompt("Copia este texto manualmente:", textToCopy);
+            });
+        }
 
         function openAuthModal() {
             document.getElementById('auth-modal').style.display = 'flex';
@@ -1808,7 +1822,6 @@
             }).join('');
         }
 
-        // CONVERSOR DE SUFIJOS DE DINERO (K, M, B, T, Qa, Qi, Sx, Spt, Oct, Nv, Dc, Ud, Dd, Td, Qad, Qid, Sxd, Spd, Ocd, Nvd, Vc)
         function parseMoneyValue(moneyStr) {
             if (!moneyStr) return 0;
             let clean = moneyStr.toString().replace(/[$,\s\/sec]/gi, '').trim();
@@ -1843,7 +1856,6 @@
                     rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                 }
 
-                // ORDENAMIENTO CORREGIDO DE MENOR A MAYOR USANDO EL CONVERSOR DE SUFIJOS
                 rPosts.sort((a, b) => {
                     let valA = parseMoneyValue(a.money);
                     let valB = parseMoneyValue(b.money);
@@ -1902,7 +1914,7 @@
             if (rObj) {
                 let size = rObj.strokeSize || 1;
                 let strokeColor = rObj.strokeColor || '#000000';
-                let alpha = rObj.strokeAlpha !== undefined ? rObj.strokeAlpha : 1;
+                let alpha = r.strokeAlpha !== undefined ? r.strokeAlpha : 1;
                 let rgb = hexToRgbStr(strokeColor);
                 strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
             }
