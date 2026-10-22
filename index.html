@@ -413,7 +413,7 @@
             border-radius: 3px;
         }
 
-        .rarity-badge {
+        .rarity-badge, .zone-badge {
             display: inline-block;
             padding: 4px 10px;
             font-weight: bold;
@@ -422,7 +422,7 @@
             color: #ffffff !important;
         }
 
-        .rarity-item {
+        .rarity-item, .zone-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -432,7 +432,7 @@
             margin-bottom: 5px;
             cursor: grab;
         }
-        .rarity-item:active {
+        .rarity-item:active, .zone-item:active {
             cursor: grabbing;
         }
 
@@ -441,54 +441,6 @@
             padding: 15px;
             border: 1px dashed var(--border-color);
             background-color: #fff;
-        }
-
-        .color-picker-popup {
-            position: absolute;
-            background: #222;
-            color: #fff;
-            border: 1px solid #444;
-            padding: 15px;
-            z-index: 2000;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            width: 320px;
-            display: none;
-            font-size: 0.85rem;
-        }
-        .roblox-palette {
-            display: grid;
-            grid-template-columns: repeat(9, 1fr);
-            gap: 3px;
-            margin-bottom: 10px;
-        }
-        .roblox-swatch {
-            width: 22px;
-            height: 18px;
-            cursor: pointer;
-            border: 1px solid #444;
-        }
-        .roblox-main-picker {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        #roblox-sv-box {
-            width: 180px;
-            height: 130px;
-            position: relative;
-            cursor: crosshair;
-            background: linear-gradient(to right, #fff, hsl(0, 100%, 50%));
-        }
-        #roblox-sv-overlay {
-            position: absolute;
-            top:0; left:0; width:100%; height:100%;
-            background: linear-gradient(to top, #000, transparent);
-        }
-        #roblox-hue-slider {
-            width: 20px;
-            height: 130px;
-            cursor: pointer;
-            background: linear-gradient(to top, red, yellow, lime, cyan, blue, magenta, red);
         }
 
         @keyframes rarityRotateAnim {
@@ -524,19 +476,6 @@
                 <button onclick="closeAuthModal()">Cancelar</button>
             </div>
             <p id="auth-error" style="color: red; font-size: 0.85rem; margin-top: 10px;"></p>
-        </div>
-    </div>
-
-    <!-- PANEL FLOTANTE DE COLOR SÓLIDO -->
-    <div id="roblox-color-picker-popup" class="color-picker-popup">
-        <div style="font-weight: bold; margin-bottom: 5px;">Colores básicos</div>
-        <div class="roblox-palette" id="roblox-basic-palette"></div>
-        <div class="roblox-main-picker">
-            <div id="roblox-sv-box"><div id="roblox-sv-overlay"></div><div id="roblox-sv-cursor" style="width:8px;height:8px;border:1px solid #fff;position:absolute;transform:translate(-50%,-50%);pointer-events:none;"></div></div>
-            <div id="roblox-hue-slider"></div>
-        </div>
-        <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 5px;">
-            <button onclick="closeRobloxColorPicker()">Aceptar</button>
         </div>
     </div>
 
@@ -579,6 +518,9 @@
                 { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
                 { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
             ],
+            zones: [
+                { name: "Zona 1", style: "#36c", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 }
+            ],
             categories: [
                 { id: "nav", name: "Navegación" },
                 { id: "sys", name: "Sistema" }
@@ -587,9 +529,9 @@
                 { id: "como-se-juega", name: "Como se juega", type: "single", catId: "nav" },
                 { id: "pajaros", name: "Pájaros", type: "posts", catId: "nav" },
                 { id: "eventos", name: "Eventos", type: "single", catId: "nav" },
-                { id: "zonas", name: "Zonas", type: "single", catId: "nav" },
                 { id: "info-juego", name: "Información del juego", type: "single", catId: "nav" },
-                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" }
+                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" },
+                { id: "zonas-sys", name: "Zonas", type: "zones", catId: "sys" }
             ],
             posts: {
                 "pajaros": []
@@ -597,7 +539,6 @@
             singleContent: {
                 "como-se-juega": { title: "Como se juega", text: "Información inicial...", media: null, mediaType: null, bg360: null, linkUrl: "" },
                 "eventos": { title: "Eventos", text: "Próximos eventos del juego...", media: null, mediaType: null, bg360: null, linkUrl: "" },
-                "zonas": { title: "Zonas", text: "Información sobre las zonas del juego...", media: null, mediaType: null, bg360: null, linkUrl: "" },
                 "info-juego": { title: "Información del juego", text: "Detalles sobre el desarrollo...", media: null, mediaType: null, bg360: null, linkUrl: "" }
             }
         };
@@ -626,6 +567,13 @@
                 if (!data.posts) data.posts = defaultData.posts;
                 if (!data.singleContent) data.singleContent = defaultData.singleContent;
                 if (!data.rarities) data.rarities = defaultData.rarities;
+                if (!data.zones) data.zones = defaultData.zones || defaultData.zones;
+                
+                // Asegurar que exista la sección de Zonas (tipo zones) en el sistema
+                if (!data.sections.some(s => s.id === 'zonas-sys')) {
+                    data.sections.push({ id: "zonas-sys", name: "Zonas", type: "zones", catId: "sys" });
+                }
+
                 data.rarities.forEach(r => {
                     if (r.strokeColor === undefined) r.strokeColor = "#000000";
                     if (r.strokeSize === undefined) r.strokeSize = 1;
@@ -638,14 +586,6 @@
                     if (r.animRepeat === undefined) r.animRepeat = "infinity";
                 });
                 if (!data.users) data.users = [];
-            }
-
-            // Asegurar que exista la sección de Zonas en singleContent y en sections si no está
-            if (!data.singleContent["zonas"]) {
-                data.singleContent["zonas"] = { title: "Zonas", text: "Información sobre las zonas del juego...", media: null, mediaType: null, bg360: null, linkUrl: "" };
-            }
-            if (!data.sections.some(s => s.id === 'zonas')) {
-                data.sections.push({ id: "zonas", name: "Zonas", type: "single", catId: "nav" });
             }
 
             let currentUsr = null;
@@ -750,11 +690,11 @@
                         <h3 style="margin:0; border:none; padding:0;">${cat.name}</h3>
                         ${catDeleteBtn}
                     </div>
-                    <ul ondragover="allowDrop(event)" ondragleave="removeDropStyle(event)" ondrop="dropSection(event, '${cat.id}')">
+                    <ul>
                         ${catSections.map(sec => {
-                            let secDeleteBtn = (isAdmin && sec.id !== 'rarezas' && sec.id !== 'zonas') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
+                            let secDeleteBtn = (isAdmin && sec.id !== 'rarezas' && sec.id !== 'zonas-sys') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
                             return `
-                                <li draggable="true" ondragstart="dragStart(event, '${sec.id}')">
+                                <li>
                                     <a onclick="switchSection('${sec.id}')">${sec.name}</a>
                                     ${secDeleteBtn}
                                 </li>
@@ -763,18 +703,6 @@
                     </ul>
                 `;
             }).join('');
-        }
-
-        let draggedSectionId = null;
-        function dragStart(event, sectionId) { draggedSectionId = sectionId; event.dataTransfer.setData('text/plain', sectionId); }
-        function allowDrop(event) { event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
-        function removeDropStyle(event) { event.currentTarget.classList.remove('drag-over'); }
-        function dropSection(event, targetCatId) {
-            event.preventDefault(); event.currentTarget.classList.remove('drag-over');
-            if (!draggedSectionId) return;
-            const sec = db.sections.find(s => s.id === draggedSectionId);
-            if (sec) { sec.catId = targetCatId; saveDB(db); renderSidebar(); }
-            draggedSectionId = null;
         }
 
         function openCreateCategoryModal() {
@@ -826,6 +754,9 @@
             if (sec.type === 'rarities') {
                 mainArea.innerHTML = renderRaritiesSection();
                 renderRaritiesList();
+            } else if (sec.type === 'zones') {
+                mainArea.innerHTML = renderZonesSection();
+                renderZonesList();
             } else if (sec.type === 'single') {
                 mainArea.innerHTML = renderSingleSection(sec);
                 renderSingleContent(sec.id);
@@ -850,7 +781,6 @@
                     <div class="form-group"><label>Título:</label><input type="text" id="single-title-${sec.id}"></div>
                     <div class="form-group"><label>Texto / Contenido:</label><textarea id="single-text-${sec.id}" rows="5"></textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="single-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="single-preview-${sec.id}"></div></div>
-                    <div class="form-group" id="single-bg360-group-${sec.id}" style="display:none;"><label>Fondo 360°:</label><input type="file" id="single-bg360-${sec.id}" accept="image/*" onchange="previewSingleBg360('${sec.id}')"><div id="single-bg360-preview-${sec.id}"></div></div>
                     <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="single-link-${sec.id}" placeholder="https://..."></div>
                     <button class="primary" onclick="saveSingleContent('${sec.id}')">Guardar Cambios</button>
                 </div>
@@ -869,7 +799,7 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             let adminForm = isAdmin ? `
                 <div class="admin-controls">
-                    <h3 id="form-title-${sec.id}">Añadir Post en ${sec.name}</h3>
+                    <h3>Añadir Post en ${sec.name}</h3>
                     <div class="form-group"><label>Título:</label><input type="text" id="post-title-${sec.id}"></div>
                     <div class="form-group"><label>Contenido:</label><textarea id="post-text-${sec.id}" rows="4"></textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
@@ -925,28 +855,21 @@
         function previewFileCustom(sectionId) {
             const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
             const previewAreaId = sectionId === 'pajaros' ? 'pj-preview-area' : (sectionId.startsWith('single-') ? `single-preview-${sectionId}` : `post-preview-${sectionId}`);
-            const bg360GroupId = sectionId === 'pajaros' ? 'pj-bg360-group' : (sectionId.startsWith('single-') ? `single-bg360-group-${sectionId}` : `post-bg360-group-${sectionId}`);
-
             const fileInput = document.getElementById(fileInputId);
             const previewArea = document.getElementById(previewAreaId);
-            const bgGroup = document.getElementById(bg360GroupId);
 
             if (fileInput && fileInput.files && fileInput.files[0]) {
                 const file = fileInput.files[0];
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const is3D = file.name.endsWith('.glb') || file.name.endsWith('.gltf');
-                    if (bgGroup) bgGroup.style.display = is3D ? 'block' : 'none';
-
                     activeMediaData[sectionId] = {
                         data: e.target.result,
-                        type: is3D ? 'model/gltf-binary' : file.type,
+                        type: file.type,
                         name: file.name
                     };
                     renderPreviewBoxCustom(sectionId);
                 };
-                if (file.name.endsWith('.glb')) reader.readAsArrayBuffer(file);
-                else reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
             }
         }
 
@@ -956,14 +879,10 @@
             const media = activeMediaData[sectionId];
             if (!media || !media.data) { if(previewArea) previewArea.innerHTML = ''; return; }
 
-            let thumb = media.type && media.type.startsWith('video') ? `<video src="${media.data}"></video>` : 
-                        media.type && media.type.includes('model') ? `<div style="display:flex;align-items:center;justify-content:center;background:#ddd;width:60px;height:60px;font-size:0.7rem;">Modelo 3D</div>` :
-                        `<img src="${media.data}">`;
-
             if(previewArea) {
                 previewArea.innerHTML = `
                     <div class="preview-container">
-                        ${thumb}
+                        <img src="${media.data}" style="width:60px;height:60px;object-fit:cover;">
                         <div style="flex-grow: 1; word-break: break-all;"><strong>Archivo:</strong> ${media.name}</div>
                         <button class="btn-remove-file" onclick="removeActiveFileCustom('${sectionId}')">X</button>
                     </div>
@@ -974,61 +893,91 @@
         function removeActiveFileCustom(sectionId) {
             activeMediaData[sectionId] = null;
             const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
-            const bg360GroupId = sectionId === 'pajaros' ? 'pj-bg360-group' : (sectionId.startsWith('single-') ? `single-bg360-group-${sectionId}` : `post-bg360-group-${sectionId}`);
-            
             const input = document.getElementById(fileInputId);
             if(input) input.value = '';
-            const bg = document.getElementById(bg360GroupId);
-            if(bg) bg.style.display = 'none';
-
             renderPreviewBoxCustom(sectionId);
         }
 
-        function previewSingleBg360(sectionId) {
-            const fileInput = document.getElementById(`single-bg360-${sectionId}`);
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData[sectionId]) activeMediaData[sectionId] = {};
-                    activeMediaData[sectionId].bg360 = e.target.result;
-                    const prev = document.getElementById(`single-bg360-preview-${sectionId}`);
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
+        // --- ZONAS (SISTEMA RAREZAS 2.0) ---
+        function renderZonesSection() {
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            let adminForm = isAdmin ? `
+                <div class="admin-controls">
+                    <h3 id="zone-form-title">Crear / Editar Zona</h3>
+                    <input type="hidden" id="zn-edit-index" value="-1">
+                    <div class="form-group"><label>Nombre de la Zona:</label><input type="text" id="zn-name"></div>
+                    <div class="form-group"><label>Estilo (Color o Gradiente CSS):</label><input type="text" id="zn-style"></div>
+                    <button class="primary" onclick="saveZone()">Guardar Zona</button>
+                    <button id="zn-cancel-btn" onclick="cancelEditZone()" style="display:none;">Cancelar Edición</button>
+                </div>
+            ` : '';
+
+            return `
+                <section class="section-content active">
+                    <h2>Zonas</h2>
+                    <p>Gestiona las zonas del juego con estilos visuales:</p>
+                    <div id="zones-list"></div>
+                    ${adminForm}
+                </section>
+            `;
+        }
+
+        function renderZonesList() {
+            const container = document.getElementById('zones-list');
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            if(!container) return;
+            if(!db.zones) db.zones = [{ name: "Zona 1", style: "#36c" }];
+            container.innerHTML = db.zones.map((z, i) => `
+                <div class="rarity-item" onclick="startEditZone(${i})">
+                    <div>
+                        <span class="rarity-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
+                        <span style="font-size: 0.85rem; color: #54595d; margin-left: 10px;">Estilo: <code>${z.style}</code></span>
+                    </div>
+                    ${isAdmin ? `<div><button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button></div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function saveZone() {
+            const name = document.getElementById('zn-name').value;
+            const style = document.getElementById('zn-style').value;
+            if (!name || !style) { alert('Ingresa el nombre y el estilo.'); return; }
+            const editIdx = parseInt(document.getElementById('zn-edit-index').value);
+            const zoneObj = { name, style };
+            if (!db.zones) db.zones = [];
+            if (editIdx >= 0) db.zones[editIdx] = zoneObj;
+            else db.zones.push(zoneObj);
+            saveDB(db); cancelEditZone(); renderZonesList();
+        }
+
+        function startEditZone(index) {
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            if (!isAdmin) return;
+            const z = db.zones[index];
+            document.getElementById('zn-edit-index').value = index;
+            document.getElementById('zn-name').value = z.name;
+            document.getElementById('zn-style').value = z.style;
+            document.getElementById('zone-form-title').innerText = 'Editar Zona: ' + z.name;
+            document.getElementById('zn-cancel-btn').style.display = 'inline-block';
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function cancelEditZone() {
+            document.getElementById('zn-edit-index').value = -1;
+            document.getElementById('zn-name').value = '';
+            document.getElementById('zn-style').value = '';
+            document.getElementById('zone-form-title').innerText = 'Crear / Editar Zona';
+            document.getElementById('zn-cancel-btn').style.display = 'none';
+        }
+
+        function deleteZone(index) {
+            if (confirm("¿Eliminar zona?")) {
+                db.zones.splice(index, 1);
+                saveDB(db); renderZonesList();
             }
         }
 
-        function previewGenericBg360(sectionId) {
-            const fileInput = document.getElementById(`post-bg360-${sectionId}`);
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData[sectionId]) activeMediaData[sectionId] = {};
-                    activeMediaData[sectionId].bg360 = e.target.result;
-                    const prev = document.getElementById(`post-bg360-preview-${sectionId}`);
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function previewPajaroBg360() {
-            const fileInput = document.getElementById('pj-bg360-file');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData['pajaros']) activeMediaData['pajaros'] = {};
-                    activeMediaData['pajaros'].bg360 = e.target.result;
-                    const prev = document.getElementById('pj-bg360-preview-area');
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
+        // --- RAREZAS ---
         function renderRaritiesSection() {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             let adminForm = isAdmin ? `
@@ -1045,7 +994,7 @@
             return `
                 <section class="section-content active">
                     <h2>Rarezas</h2>
-                    <p>Arrastra las rarezas hacia arriba o abajo para definir su jerarquía:</p>
+                    <p>Gestiona las rarezas del juego:</p>
                     <div id="rarities-list"></div>
                     ${adminForm}
                 </section>
@@ -1135,22 +1084,74 @@
             }
         }
 
-        function generateLinkHTML(url) {
-            if (!url) return '';
-            let domain = "enlace externo";
-            let favicon = "https://www.google.com/s2/favicons?domain=example.com&sz=32";
-            let title = url;
-            let thumbHtml = '';
-            try {
-                const parsedUrl = new URL(url);
-                domain = parsedUrl.hostname;
-                favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-                if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
-                    title = "Video o Canal de YouTube";
-                    thumbHtml = `<img class="thumb" src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=120" alt="Portada">`;
-                } else { title = domain; }
-            } catch (e) {}
-            return `<a href="${url}" target="_blank" class="link-preview-card"><div class="link-header"><img src="${favicon}" alt="Favicon"><span>${domain}</span></div><div class="link-body">${thumbHtml}<div class="link-title">${title}</div></div></a>`;
+        // --- PÁJAROS ---
+        function renderDynamicPajaroForm(isEditing, targetRarity, editIndex) {
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            if (!isAdmin) return '';
+
+            if(!db.zones) db.zones = [{ name: "Zona 1", style: "#36c" }];
+
+            let pData = { title: '', zone: db.zones[0]?.name || 'Zona 1', money: '', text: '', linkUrl: '', rarity: targetRarity || (db.rarities[0] ? db.rarities[0].name : '') };
+            if (isEditing && editIndex >= 0) {
+                pData = db.posts['pajaros'][editIndex];
+            }
+
+            return `
+                <div class="admin-controls" style="margin-top: 15px; border: 2px solid #36c;">
+                    <h3>${isEditing ? 'Editar Pájaro' : 'Añadir Nuevo Pájaro en ' + targetRarity}</h3>
+                    <div class="form-group"><label>Nombre:</label><input type="text" id="dyn-pj-title" value="${pData.title}"></div>
+                    <div class="form-group"><label>Rareza:</label>
+                        <select id="dyn-pj-rarity">
+                            ${db.rarities.map(r => `<option value="${r.name}" ${pData.rarity === r.name ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Zona:</label>
+                        <select id="dyn-pj-zone">
+                            ${db.zones.map(z => `<option value="${z.name}" ${pData.zone === z.name ? 'selected' : ''}>${z.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Dinero por segundo ($/sec):</label><input type="text" id="dyn-pj-money" value="${pData.money || ''}"></div>
+                    <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="4">${pData.text}</textarea></div>
+                    <div class="form-group"><label>Multimedia:</label><input type="file" id="pj-media-file" accept="image/*,video/*" onchange="previewFileCustom('pajaros')"><div id="pj-preview-area"></div></div>
+                    <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="dyn-pj-link" value="${pData.linkUrl || ''}" placeholder="https://..."></div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="primary" onclick="saveDynamicPajaro(${isEditing ? editIndex : -1})">Guardar</button>
+                        <button onclick="activeFormState = {type: null, rarity: null, editIndex: -1}; renderPajaros();">Cancelar</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function saveDynamicPajaro(editIndex) {
+            const title = document.getElementById('dyn-pj-title').value;
+            const rarity = document.getElementById('dyn-pj-rarity').value;
+            const zone = document.getElementById('dyn-pj-zone').value;
+            const money = document.getElementById('dyn-pj-money').value;
+            const text = document.getElementById('dyn-pj-text').value;
+            const linkUrl = document.getElementById('dyn-pj-link').value;
+
+            if (!title || !money || !text) { alert('Completa los campos requeridos.'); return; }
+
+            let mediaData = editIndex >= 0 ? db.posts['pajaros'][editIndex].media : null;
+            let mediaType = editIndex >= 0 ? db.posts['pajaros'][editIndex].mediaType : null;
+
+            if (activeMediaData['pajaros']) {
+                mediaData = activeMediaData['pajaros'].data;
+                mediaType = activeMediaData['pajaros'].type;
+            }
+
+            const pajaroObj = { title, rarity, zone, money, text, linkUrl, media: mediaData, mediaType: mediaType };
+            if (editIndex >= 0) {
+                db.posts['pajaros'][editIndex] = pajaroObj;
+            } else {
+                if(!db.posts['pajaros']) db.posts['pajaros'] = [];
+                db.posts['pajaros'].push(pajaroObj);
+            }
+
+            saveDB(db);
+            activeFormState = { type: null, rarity: null, editIndex: -1 };
+            activeMediaData['pajaros'] = null;
+            renderPajaros();
         }
 
         function renderRarityCheckboxes() {
@@ -1175,26 +1176,6 @@
         function toggleRarityFilter(name) {
             activeRarityFilters[name] = !activeRarityFilters[name];
             renderPajaros();
-        }
-
-        function parseMoneyValue(moneyStr) {
-            if (!moneyStr) return 0;
-            let clean = moneyStr.toString().replace(/[$,\s\/sec]/gi, '').trim();
-            const suffixes = ["k", "m", "b", "t", "qa", "qi", "sx", "spt", "oct", "nv", "dc", "ud", "dd", "td", "qad", "qid", "sxd", "spd", "ocd", "nvd", "vc"];
-            
-            let multiplier = 1;
-            let lowerClean = clean.toLowerCase();
-            
-            for (let i = 0; i < suffixes.length; i++) {
-                let suf = suffixes[i];
-                if (lowerClean.endsWith(suf)) {
-                    multiplier = Math.pow(10, (i + 1) * 3);
-                    clean = clean.substring(0, clean.length - suf.length);
-                    break;
-                }
-            }
-            let num = parseFloat(clean);
-            return isNaN(num) ? 0 : num * multiplier;
         }
 
         function renderPajaros() {
@@ -1258,11 +1239,9 @@
                     `;
                 });
             } else if (currentSortMode === 'zone') {
-                let zonesSet = [...new Set(posts.map(p => p.zone || 'Zona 1'))];
-                if(zonesSet.length === 0) zonesSet = ['Zona 1'];
-
-                zonesSet.forEach((zoneName) => {
-                    let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zoneName);
+                if(!db.zones) db.zones = [{ name: "Zona 1", style: "#36c" }];
+                db.zones.forEach((zObj) => {
+                    let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zObj.name);
                     if (searchVal) zPosts = zPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                     zPosts = zPosts.filter(p => activeRarityFilters[p.rarity] !== false);
                     zPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
@@ -1277,8 +1256,8 @@
 
                     htmlOutput += `
                         <div class="rarity-category-group">
-                            <div class="rarity-category-header" style="background: #36c;">
-                                <span>Zona: ${zoneName} (${zPosts.length})</span>
+                            <div class="rarity-category-header" style="background: ${zObj.style};">
+                                <span>Zona: ${zObj.name} (${zPosts.length})</span>
                             </div>
                             <div class="rarity-category-body">
                                 ${contentHtml}
@@ -1332,6 +1311,8 @@
         function renderPostCardHTML(p, sectionId, index) {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             const rObj = sectionId === 'pajaros' ? db.rarities.find(r => r.name === p.rarity) : null;
+            const zObj = sectionId === 'pajaros' && db.zones ? db.zones.find(z => z.name === p.zone) : null;
+            
             let strokeCss = '';
             if (rObj) {
                 let size = rObj.strokeSize || 1;
@@ -1341,11 +1322,21 @@
                 strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
             }
             const styleAttr = rObj ? `background: ${rObj.style}; ${strokeCss}` : 'background: #333;';
-            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> <span class="rarity-badge" style="${styleAttr}">${p.rarity}</span> | <strong>Zona:</strong> ${p.zone || 'Zona 1'}</p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
+            const zoneStyleAttr = zObj ? `background: ${zObj.style};` : 'background: #717171;';
+            
+            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> <span class="rarity-badge" style="${styleAttr}">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="${zoneStyleAttr}">${p.zone || 'Zona 1'}</span></p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
             
             let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${index})">Editar</button><button class="danger" onclick="deleteGenericPost('${sectionId}', ${index})">Eliminar</button></div>` : '';
 
             return `<div class="post-card"><div class="post-left"><h3 style="margin-top:0;">${p.title}</h3>${extraInfo}<p style="white-space: pre-wrap;">${p.text}</p>${generateLinkHTML(p.linkUrl)}${adminButtons}</div><div class="post-right">${generateMediaHTML(p.media, p.mediaType, p.bg360, `${sectionId}-${index}`)}</div></div>`;
+        }
+
+        function deleteGenericPost(sectionId, index) {
+            if (confirm("¿Eliminar post?")) { 
+                db.posts[sectionId].splice(index, 1); 
+                saveDB(db); 
+                renderPajaros(); 
+            }
         }
 
         window.onload = function() { initApp(); };
