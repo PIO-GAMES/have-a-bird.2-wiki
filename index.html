@@ -601,17 +601,13 @@
 
         function loadDB() {
             let data = null;
-            // ÚNICA CLAVE GLOBAL UNIFICADA PARA TODAS LAS CUENTAS Y VISITANTES
             const globalKey = 'have_a_bird_wiki_global_db_v1';
             const savedGlobal = localStorage.getItem(globalKey);
 
             if (savedGlobal) {
-                try {
-                    data = JSON.parse(savedGlobal);
-                } catch(e){}
+                try { data = JSON.parse(savedGlobal); } catch(e){}
             }
 
-            // Si no existe la global, intentar migrar de las antiguas por seguridad
             if (!data) {
                 for (let i = 5; i >= 1; i--) {
                     const key = i === 5 ? 'have_a_bird_wiki_db_v5' : `have_a_bird_wiki_db_v${i}`;
@@ -658,7 +654,6 @@
 
         function saveDB(data) {
             try {
-                // GUARDADO GLOBAL ÚNICO
                 localStorage.setItem('have_a_bird_wiki_global_db_v1', JSON.stringify(data));
                 if (data.currentUser) {
                     localStorage.setItem('have_a_bird_active_user', JSON.stringify(data.currentUser));
@@ -912,7 +907,6 @@
             `;
         }
 
-        // --- MANEJO DE ARCHIVOS MULTIMEDIA ---
         function previewFileCustom(sectionId) {
             const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
             const previewAreaId = sectionId === 'pajaros' ? 'pj-preview-area' : (sectionId.startsWith('single-') ? `single-preview-${sectionId}` : `post-preview-${sectionId}`);
@@ -1020,7 +1014,6 @@
             }
         }
 
-        // --- SECCIÓN RAREZAS ---
         let currentEditingRarityIndex = -1;
         let activeColorInputTarget = null;
         let currentGradientStops = [{pos: 0, color: '#000000'}, {pos: 1, color: '#ffffff'}];
@@ -1815,26 +1808,21 @@
             }).join('');
         }
 
+        // CORRECCIÓN: MOSTRAR SIEMPRE TODAS LAS RAREZAS AUNQUE NO TENGAN PÁJAROS
         function renderPajaros() {
             renderRarityCheckboxes();
             const container = document.getElementById('posts-pajaros');
             const searchVal = document.getElementById('search-pajaros')?.value.toLowerCase() || "";
             const posts = db.posts['pajaros'] || [];
 
-            const filteredPosts = posts.filter(p => {
-                const matchesSearch = p.title.toLowerCase().includes(searchVal);
-                const matchesRarity = activeRarityFilters[p.rarity] !== false;
-                return matchesSearch && matchesRarity;
-            });
-
-            if (posts.length === 0 && activeFormState.type !== 'create') {
-                container.innerHTML = '<p style="color: #72777d; font-style: italic;">No hay pájaros creados todavía.</p>';
-                return;
-            }
-
             let htmlOutput = '';
             db.rarities.forEach((rObj) => {
-                let rPosts = filteredPosts.filter(p => p.rarity === rObj.name);
+                let rPosts = posts.filter(p => p.rarity === rObj.name);
+
+                // Filtrar por buscador si hay texto escrito
+                if (searchVal) {
+                    rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
+                }
 
                 rPosts.sort((a, b) => {
                     let valA = parseFloat(a.money) || 0;
@@ -1854,19 +1842,26 @@
 
                 let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(false, rObj.name, -1) : '';
 
+                let contentHtml = '';
+                if (rPosts.length === 0) {
+                    contentHtml = `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta rareza todavía.</p>`;
+                } else {
+                    contentHtml = rPosts.map(p => {
+                        let originalIdx = posts.indexOf(p);
+                        let cardHtml = renderPostCardHTML(p, 'pajaros', originalIdx);
+                        let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, rObj.name, originalIdx) : '';
+                        return cardHtml + editFormHtml;
+                    }).join('');
+                }
+
                 htmlOutput += `
                     <div class="rarity-category-group">
                         <div class="rarity-category-header" style="background: ${rObj.style}; ${strokeCss}" onclick="toggleCategoryCollapse('${rObj.name}')">
-                            <span>${isCollapsed ? '▶' : '▼'} Rareza: ${rObj.name} (${rPosts.length} visibles)</span>
+                            <span>${isCollapsed ? '▶' : '▼'} Rareza: ${rObj.name} (${rPosts.length})</span>
                             ${addBtnHtml}
                         </div>
                         <div class="rarity-category-body ${isCollapsed ? 'collapsed' : ''}">
-                            ${rPosts.map(p => {
-                                let originalIdx = posts.indexOf(p);
-                                let cardHtml = renderPostCardHTML(p, 'pajaros', originalIdx);
-                                let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, rObj.name, originalIdx) : '';
-                                return cardHtml + editFormHtml;
-                            }).join('')}
+                            ${contentHtml}
                             ${addFormHtml}
                         </div>
                     </div>
