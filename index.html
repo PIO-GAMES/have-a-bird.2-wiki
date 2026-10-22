@@ -145,7 +145,7 @@
         };
 
         let activeMediaData = {}, activeRarityFilters = {}, activeFormState = { type: null, rarity: null, editIndex: -1 };
-        let currentSortMode = 'rarity'; // Modes: 'rarity', 'zone', 'money-asc', 'money-desc'
+        let currentSortMode = 'rarity';
 
         function loadDB() {
             let data = null;
@@ -337,36 +337,63 @@
             renderPajaros();
         }
 
-        function renderDynamicPajaroForm(targetRarity) {
-            const defaultZone = db.zones[0]?.name || '';
+        function toggleEditForm(index) {
+            activeFormState = (activeFormState.type === 'edit' && activeFormState.editIndex === index) ? { type: null, rarity: null, editIndex: -1 } : { type: 'edit', rarity: null, editIndex: index };
+            const p = db.posts['pajaros'][index];
+            if (p && p.media) activeMediaData['pajaros'] = { data: p.media, type: p.mediaType || 'image/png', name: 'Actual' };
+            else activeMediaData['pajaros'] = null;
+            renderPajaros();
+        }
+
+        function renderDynamicPajaroForm(isEditing, targetRarity, editIndex) {
+            let pData = { title: '', zone: db.zones[0]?.name || '', money: '', text: '', rarity: targetRarity || db.rarities[0]?.name || '' };
+            if (isEditing && editIndex >= 0) {
+                pData = db.posts['pajaros'][editIndex];
+            }
             return `
                 <div class="admin-controls" style="border: 2px solid #36c; margin-top: 10px;">
-                    <h3>Añadir Pájaro en ${targetRarity}</h3>
-                    <div class="form-group"><label>Nombre:</label><input type="text" id="dyn-pj-title"></div>
+                    <h3>${isEditing ? 'Editar Pájaro' : 'Añadir Pájaro en ' + targetRarity}</h3>
+                    <div class="form-group"><label>Nombre:</label><input type="text" id="dyn-pj-title" value="${pData.title}"></div>
                     <div class="form-group"><label>Zona:</label>
                         <select id="dyn-pj-zone">
-                            ${db.zones.map(z => `<option value="${z.name}">${z.name}</option>`).join('')}
+                            ${db.zones.map(z => `<option value="${z.name}" ${pData.zone === z.name ? 'selected' : ''}>${z.name}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="form-group"><label>Dinero ($/sec):</label><input type="text" id="dyn-pj-money"></div>
-                    <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="3"></textarea></div>
+                    <div class="form-group"><label>Dinero ($/sec):</label><input type="text" id="dyn-pj-money" value="${pData.money || ''}"></div>
+                    <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="3">${pData.text}</textarea></div>
                     <div class="form-group"><label>Imagen:</label><input type="file" id="pj-media-file" accept="image/*" onchange="previewFileCustom('pajaros')"><div id="pj-preview-area"></div></div>
-                    <button class="primary" onclick="saveDynamicPajaro('${targetRarity}')">Guardar Pájaro</button>
+                    <div style="display:flex; gap:10px;">
+                        <button class="primary" onclick="saveDynamicPajaro(${isEditing ? editIndex : -1})">Guardar Pájaro</button>
+                        <button onclick="activeFormState = {type: null, rarity: null, editIndex: -1}; renderPajaros();">Cancelar</button>
+                    </div>
                 </div>
             `;
         }
 
-        function saveDynamicPajaro(rarity) {
+        function saveDynamicPajaro(editIndex) {
             const title = document.getElementById('dyn-pj-title').value;
             const zone = document.getElementById('dyn-pj-zone').value;
             const money = document.getElementById('dyn-pj-money').value;
             const text = document.getElementById('dyn-pj-text').value;
             if (!title || !money || !text) return;
-            let media = activeMediaData['pajaros']?.data || null;
-            let mediaType = activeMediaData['pajaros']?.type || null;
+            
+            let rarity = editIndex >= 0 ? db.posts['pajaros'][editIndex].rarity : activeFormState.rarity;
+            let media = editIndex >= 0 ? db.posts['pajaros'][editIndex].media : null;
+            let mediaType = editIndex >= 0 ? db.posts['pajaros'][editIndex].mediaType : null;
 
-            if(!db.posts['pajaros']) db.posts['pajaros'] = [];
-            db.posts['pajaros'].push({ title, rarity, zone, money, text, media, mediaType });
+            if (activeMediaData['pajaros']) {
+                media = activeMediaData['pajaros'].data;
+                mediaType = activeMediaData['pajaros'].type;
+            }
+
+            const pajaroObj = { title, rarity, zone, money, text, media, mediaType };
+            if (editIndex >= 0) {
+                db.posts['pajaros'][editIndex] = pajaroObj;
+            } else {
+                if(!db.posts['pajaros']) db.posts['pajaros'] = [];
+                db.posts['pajaros'].push(pajaroObj);
+            }
+
             saveDB(db); activeFormState = { type: null, rarity: null, editIndex: -1 }; activeMediaData['pajaros'] = null;
             renderPajaros();
         }
@@ -419,13 +446,16 @@
                     rPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
 
                     let addBtnHtml = isAdmin ? `<button class="primary" style="font-size:0.75rem; padding:2px 6px;" onclick="event.stopPropagation(); toggleAddForm('${rObj.name}')">+ Añadir</button>` : '';
-                    let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(rObj.name) : '';
+                    let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(false, rObj.name, -1) : '';
 
                     let contentHtml = rPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta rareza todavía.</p>` :
                         rPosts.map(p => {
                             let originalIdx = posts.indexOf(p);
                             let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
                             let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
+                            let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, rObj.name, originalIdx) : '';
+                            let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${originalIdx})">Editar</button><button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button></div>` : '';
+                            
                             return `
                                 <div class="post-card">
                                     <div class="post-left">
@@ -433,10 +463,11 @@
                                         <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
                                         <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                         <p>${p.text}</p>
-                                        ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
+                                        ${adminButtons}
                                     </div>
                                     <div class="post-right">${imgTag}</div>
                                 </div>
+                                ${editFormHtml}
                             `;
                         }).join('');
 
@@ -453,10 +484,7 @@
                 db.zones.forEach((zObj) => {
                     let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zObj.name);
                     if (searchVal) zPosts = zPosts.filter(p => p.title.toLowerCase().includes(searchVal));
-
-                    // Filter by active rarities too
                     zPosts = zPosts.filter(p => activeRarityFilters[p.rarity] !== false);
-
                     zPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
 
                     let contentHtml = zPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta zona.</p>` :
@@ -464,6 +492,9 @@
                             let originalIdx = posts.indexOf(p);
                             let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
                             let rObj = db.rarities.find(r => r.name === p.rarity) || { style: '#717171' };
+                            let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, null, originalIdx) : '';
+                            let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${originalIdx})">Editar</button><button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button></div>` : '';
+
                             return `
                                 <div class="post-card">
                                     <div class="post-left">
@@ -471,10 +502,11 @@
                                         <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zObj.style};">${zObj.name}</span></p>
                                         <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                         <p>${p.text}</p>
-                                        ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
+                                        ${adminButtons}
                                     </div>
                                     <div class="post-right">${imgTag}</div>
                                 </div>
+                                ${editFormHtml}
                             `;
                         }).join('');
 
@@ -488,7 +520,6 @@
                     `;
                 });
             } else {
-                // Money Sort (asc or desc)
                 let sortedPosts = [...posts];
                 if (searchVal) sortedPosts = sortedPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                 sortedPosts = sortedPosts.filter(p => activeRarityFilters[p.rarity] !== false);
@@ -505,6 +536,9 @@
                         let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
                         let rObj = db.rarities.find(r => r.name === p.rarity) || { style: '#717171' };
                         let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
+                        let editFormHtml = (activeFormState.type === 'edit' && activeFormState.editIndex === originalIdx) ? renderDynamicPajaroForm(true, null, originalIdx) : '';
+                        let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${originalIdx})">Editar</button><button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button></div>` : '';
+
                         return `
                             <div class="post-card">
                                 <div class="post-left">
@@ -512,10 +546,11 @@
                                     <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
                                     <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                     <p>${p.text}</p>
-                                    ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
+                                    ${adminButtons}
                                 </div>
                                 <div class="post-right">${imgTag}</div>
                             </div>
+                            ${editFormHtml}
                         `;
                     }).join('');
 
