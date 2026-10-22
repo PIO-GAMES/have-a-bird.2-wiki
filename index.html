@@ -45,8 +45,9 @@
         button.primary:hover { background-color: #2a4b8d; }
         button.danger { color: #ba0000; border-color: #ba0000; }
         button.danger:hover { background-color: #fdf2f2; }
-        .search-box { margin-bottom: 15px; display: flex; gap: 10px; }
+        .search-box { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
         .search-box input { flex-grow: 1; padding: 6px; border: 1px solid var(--border-color); }
+        .search-box select { padding: 6px; border: 1px solid var(--border-color); background: #fff; }
         .rarity-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; background: var(--box-bg); border: 1px solid var(--border-color); padding: 12px; margin-bottom: 20px; align-items: center; }
         .rarity-filter-item { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; cursor: pointer; background: #fff; padding: 4px 8px; border: 1px solid var(--border-color); }
         .rarity-category-group { margin-bottom: 20px; border: 1px solid var(--border-color); background: #fff; }
@@ -59,8 +60,8 @@
         .media-container img { width: 100%; height: 100%; object-fit: contain; }
         .preview-container { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px; border: 1px dashed var(--border-color); background: #fff; font-size: 0.85rem; }
         .btn-remove-file { background: #ba0000; color: white; border: none; padding: 2px 6px; font-weight: bold; cursor: pointer; border-radius: 3px; }
-        .rarity-badge { display: inline-block; padding: 4px 10px; font-weight: bold; border-radius: 3px; font-size: 0.9rem; color: #ffffff !important; }
-        .rarity-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border-color); background: #fff; margin-bottom: 5px; }
+        .rarity-badge, .zone-badge { display: inline-block; padding: 4px 10px; font-weight: bold; border-radius: 3px; font-size: 0.9rem; color: #ffffff !important; }
+        .rarity-item, .zone-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border-color); background: #fff; margin-bottom: 5px; }
         .admin-controls { margin-top: 15px; padding: 15px; border: 1px dashed var(--border-color); background-color: #fff; }
     </style>
 </head>
@@ -122,13 +123,18 @@
                 { name: "Cristmas", style: "#00e400" }, { name: "San Valentin", style: "#ffaec9" },
                 { name: "New Year", style: "#a349a4" }
             ],
+            zones: [
+                { name: "Zona 1", style: "#717171" },
+                { name: "Zona 2", style: "#00a2e8" }
+            ],
             categories: [{ id: "nav", name: "Navegación" }, { id: "sys", name: "Sistema" }],
             sections: [
                 { id: "como-se-juega", name: "Como se juega", type: "single", catId: "nav" },
                 { id: "pajaros", name: "Pájaros", type: "posts", catId: "nav" },
                 { id: "eventos", name: "Eventos", type: "single", catId: "nav" },
                 { id: "info-juego", name: "Información del juego", type: "single", catId: "nav" },
-                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" }
+                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" },
+                { id: "zonas", name: "Zonas", type: "zones", catId: "sys" }
             ],
             posts: { "pajaros": [] },
             singleContent: {
@@ -139,12 +145,14 @@
         };
 
         let activeMediaData = {}, activeRarityFilters = {}, activeFormState = { type: null, rarity: null, editIndex: -1 };
+        let currentSortMode = 'rarity'; // Modes: 'rarity', 'zone', 'money-asc', 'money-desc'
 
         function loadDB() {
             let data = null;
             const savedGlobal = localStorage.getItem('have_a_bird_wiki_global_db_v1');
             if (savedGlobal) { try { data = JSON.parse(savedGlobal); } catch(e){} }
             if (!data) data = defaultData;
+            if (!data.zones) data.zones = defaultData.zones;
             data.currentUser = { username: "MrPhoenixWiki", password: "787878", isAdmin: true };
             saveDB(data);
             return data;
@@ -200,8 +208,23 @@
             if (!sec) return;
             const mainArea = document.getElementById('main-content-area');
             if (sec.type === 'rarities') {
-                mainArea.innerHTML = `<h2>Rarezas</h2><div id="rarities-list"></div>`;
+                mainArea.innerHTML = `<h2>Rarezas</h2><div id="rarities-list"></div>` + (db.currentUser?.isAdmin ? `
+                    <div class="admin-controls">
+                        <h3>Añadir Rareza</h3>
+                        <div class="form-group"><label>Nombre:</label><input type="text" id="rz-name"></div>
+                        <div class="form-group"><label>Color o Gradiente:</label><input type="text" id="rz-style"></div>
+                        <button class="primary" onclick="saveRarity()">Guardar Rareza</button>
+                    </div>` : '');
                 renderRaritiesList();
+            } else if (sec.type === 'zones') {
+                mainArea.innerHTML = `<h2>Zonas</h2><div id="zones-list"></div>` + (db.currentUser?.isAdmin ? `
+                    <div class="admin-controls">
+                        <h3>Añadir Zona</h3>
+                        <div class="form-group"><label>Nombre de Zona:</label><input type="text" id="zn-name"></div>
+                        <div class="form-group"><label>Color o Gradiente:</label><input type="text" id="zn-style"></div>
+                        <button class="primary" onclick="saveZone()">Guardar Zona</button>
+                    </div>` : '');
+                renderZonesList();
             } else if (sec.type === 'single') {
                 mainArea.innerHTML = `<h2>${sec.name}</h2><div id="single-display-${sec.id}"></div>`;
                 renderSingleContent(sec.id);
@@ -210,7 +233,15 @@
                     db.rarities.forEach(r => { if (activeRarityFilters[r.name] === undefined) activeRarityFilters[r.name] = true; });
                     mainArea.innerHTML = `
                         <h2>Pájaros</h2>
-                        <div class="search-box"><input type="text" id="search-pajaros" placeholder="Buscar pájaro..." oninput="renderPajaros()"></div>
+                        <div class="search-box">
+                            <input type="text" id="search-pajaros" placeholder="Buscar pájaro..." oninput="renderPajaros()">
+                            <select id="sort-mode-select" onchange="changeSortMode(this.value)">
+                                <option value="rarity">Ordenar por Rareza</option>
+                                <option value="zone">Ordenar por Zona</option>
+                                <option value="money-asc">Dinero: Menor a Mayor</option>
+                                <option value="money-desc">Dinero: Mayor a Menor</option>
+                            </select>
+                        </div>
                         <div class="rarity-filter-bar">
                             <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                                 <strong>Filtrar por Rarezas:</strong>
@@ -223,10 +254,16 @@
                         </div>
                         <div id="posts-pajaros"></div>
                     `;
+                    document.getElementById('sort-mode-select').value = currentSortMode;
                     activeFormState = { type: null, rarity: null, editIndex: -1 };
                     renderPajaros();
                 }
             }
+        }
+
+        function changeSortMode(mode) {
+            currentSortMode = mode;
+            renderPajaros();
         }
 
         function setAllRarityFilters(val) {
@@ -253,9 +290,41 @@
             container.innerHTML = db.rarities.map((r, i) => `
                 <div class="rarity-item">
                     <span class="rarity-badge" style="background:${r.style};">${i+1}. ${r.name}</span>
+                    ${db.currentUser?.isAdmin ? `<button class="danger" onclick="deleteRarity(${i})">Eliminar</button>` : ''}
                 </div>
             `).join('');
         }
+
+        function saveRarity() {
+            const name = document.getElementById('rz-name').value;
+            const style = document.getElementById('rz-style').value;
+            if (!name || !style) return;
+            db.rarities.push({ name, style });
+            saveDB(db); renderRaritiesList();
+        }
+
+        function deleteRarity(idx) { db.rarities.splice(idx, 1); saveDB(db); renderRaritiesList(); }
+
+        function renderZonesList() {
+            const container = document.getElementById('zones-list');
+            if(!container) return;
+            container.innerHTML = db.zones.map((z, i) => `
+                <div class="zone-item">
+                    <span class="zone-badge" style="background:${z.style};">${i+1}. ${z.name}</span>
+                    ${db.currentUser?.isAdmin ? `<button class="danger" onclick="deleteZone(${i})">Eliminar</button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function saveZone() {
+            const name = document.getElementById('zn-name').value;
+            const style = document.getElementById('zn-style').value;
+            if (!name || !style) return;
+            db.zones.push({ name, style });
+            saveDB(db); renderZonesList();
+        }
+
+        function deleteZone(idx) { db.zones.splice(idx, 1); saveDB(db); renderZonesList(); }
 
         function renderSingleContent(sectionId) {
             if (!db.singleContent[sectionId]) db.singleContent[sectionId] = { title: "Nuevo", text: "", media: null };
@@ -269,10 +338,16 @@
         }
 
         function renderDynamicPajaroForm(targetRarity) {
+            const defaultZone = db.zones[0]?.name || '';
             return `
                 <div class="admin-controls" style="border: 2px solid #36c; margin-top: 10px;">
                     <h3>Añadir Pájaro en ${targetRarity}</h3>
                     <div class="form-group"><label>Nombre:</label><input type="text" id="dyn-pj-title"></div>
+                    <div class="form-group"><label>Zona:</label>
+                        <select id="dyn-pj-zone">
+                            ${db.zones.map(z => `<option value="${z.name}">${z.name}</option>`).join('')}
+                        </select>
+                    </div>
                     <div class="form-group"><label>Dinero ($/sec):</label><input type="text" id="dyn-pj-money"></div>
                     <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="3"></textarea></div>
                     <div class="form-group"><label>Imagen:</label><input type="file" id="pj-media-file" accept="image/*" onchange="previewFileCustom('pajaros')"><div id="pj-preview-area"></div></div>
@@ -283,6 +358,7 @@
 
         function saveDynamicPajaro(rarity) {
             const title = document.getElementById('dyn-pj-title').value;
+            const zone = document.getElementById('dyn-pj-zone').value;
             const money = document.getElementById('dyn-pj-money').value;
             const text = document.getElementById('dyn-pj-text').value;
             if (!title || !money || !text) return;
@@ -290,7 +366,7 @@
             let mediaType = activeMediaData['pajaros']?.type || null;
 
             if(!db.posts['pajaros']) db.posts['pajaros'] = [];
-            db.posts['pajaros'].push({ title, rarity, money, text, media, mediaType });
+            db.posts['pajaros'].push({ title, rarity, zone, money, text, media, mediaType });
             saveDB(db); activeFormState = { type: null, rarity: null, editIndex: -1 }; activeMediaData['pajaros'] = null;
             renderPajaros();
         }
@@ -332,26 +408,108 @@
             const posts = db.posts['pajaros'] || [];
 
             let htmlOutput = '';
-            db.rarities.forEach((rObj) => {
-                if (activeRarityFilters[rObj.name] === false) return;
-                let rPosts = posts.filter(p => p.rarity === rObj.name);
-                if (searchVal) rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
+            const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
 
-                rPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
+            if (currentSortMode === 'rarity') {
+                db.rarities.forEach((rObj) => {
+                    if (activeRarityFilters[rObj.name] === false) return;
+                    let rPosts = posts.filter(p => p.rarity === rObj.name);
+                    if (searchVal) rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
 
-                const isAdmin = db.currentUser ? db.currentUser.isAdmin : false;
-                let addBtnHtml = isAdmin ? `<button class="primary" style="font-size:0.75rem; padding:2px 6px;" onclick="event.stopPropagation(); toggleAddForm('${rObj.name}')">+ Añadir</button>` : '';
-                let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(rObj.name) : '';
+                    rPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
 
-                let contentHtml = rPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta rareza todavía.</p>` :
-                    rPosts.map(p => {
+                    let addBtnHtml = isAdmin ? `<button class="primary" style="font-size:0.75rem; padding:2px 6px;" onclick="event.stopPropagation(); toggleAddForm('${rObj.name}')">+ Añadir</button>` : '';
+                    let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(rObj.name) : '';
+
+                    let contentHtml = rPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta rareza todavía.</p>` :
+                        rPosts.map(p => {
+                            let originalIdx = posts.indexOf(p);
+                            let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
+                            let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
+                            return `
+                                <div class="post-card">
+                                    <div class="post-left">
+                                        <h3 style="margin-top:0;">${p.title}</h3>
+                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
+                                        <p><strong>Dinero:</strong> $${p.money}/sec</p>
+                                        <p>${p.text}</p>
+                                        ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
+                                    </div>
+                                    <div class="post-right">${imgTag}</div>
+                                </div>
+                            `;
+                        }).join('');
+
+                    htmlOutput += `
+                        <div class="rarity-category-group">
+                            <div class="rarity-category-header" style="background: ${rObj.style};">
+                                <span>Rareza: ${rObj.name} (${rPosts.length})</span>${addBtnHtml}
+                            </div>
+                            <div class="rarity-category-body">${contentHtml}${addFormHtml}</div>
+                        </div>
+                    `;
+                });
+            } else if (currentSortMode === 'zone') {
+                db.zones.forEach((zObj) => {
+                    let zPosts = posts.filter(p => (p.zone || 'Zona 1') === zObj.name);
+                    if (searchVal) zPosts = zPosts.filter(p => p.title.toLowerCase().includes(searchVal));
+
+                    // Filter by active rarities too
+                    zPosts = zPosts.filter(p => activeRarityFilters[p.rarity] !== false);
+
+                    zPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
+
+                    let contentHtml = zPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros en esta zona.</p>` :
+                        zPosts.map(p => {
+                            let originalIdx = posts.indexOf(p);
+                            let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
+                            let rObj = db.rarities.find(r => r.name === p.rarity) || { style: '#717171' };
+                            return `
+                                <div class="post-card">
+                                    <div class="post-left">
+                                        <h3 style="margin-top:0;">${p.title}</h3>
+                                        <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zObj.style};">${zObj.name}</span></p>
+                                        <p><strong>Dinero:</strong> $${p.money}/sec</p>
+                                        <p>${p.text}</p>
+                                        ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
+                                    </div>
+                                    <div class="post-right">${imgTag}</div>
+                                </div>
+                            `;
+                        }).join('');
+
+                    htmlOutput += `
+                        <div class="rarity-category-group">
+                            <div class="rarity-category-header" style="background: ${zObj.style};">
+                                <span>Zona: ${zObj.name} (${zPosts.length})</span>
+                            </div>
+                            <div class="rarity-category-body">${contentHtml}</div>
+                        </div>
+                    `;
+                });
+            } else {
+                // Money Sort (asc or desc)
+                let sortedPosts = [...posts];
+                if (searchVal) sortedPosts = sortedPosts.filter(p => p.title.toLowerCase().includes(searchVal));
+                sortedPosts = sortedPosts.filter(p => activeRarityFilters[p.rarity] !== false);
+
+                sortedPosts.sort((a, b) => {
+                    let valA = parseMoneyValue(a.money);
+                    let valB = parseMoneyValue(b.money);
+                    return currentSortMode === 'money-asc' ? valA - valB : valB - valA;
+                });
+
+                let contentHtml = sortedPosts.length === 0 ? `<p style="color: #72777d; font-style: italic; margin: 0 0 10px 0;">No hay pájaros.</p>` :
+                    sortedPosts.map(p => {
                         let originalIdx = posts.indexOf(p);
                         let imgTag = p.media ? `<div class="media-container"><img src="${p.media}"></div>` : '';
+                        let rObj = db.rarities.find(r => r.name === p.rarity) || { style: '#717171' };
+                        let zoneObj = db.zones.find(z => z.name === p.zone) || { style: '#717171' };
                         return `
                             <div class="post-card">
                                 <div class="post-left">
                                     <h3 style="margin-top:0;">${p.title}</h3>
-                                    <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span></p>
+                                    <p><strong>Rareza:</strong> <span class="rarity-badge" style="background:${rObj.style};">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="background:${zoneObj.style};">${p.zone || 'Zona 1'}</span></p>
                                     <p><strong>Dinero:</strong> $${p.money}/sec</p>
                                     <p>${p.text}</p>
                                     ${isAdmin ? `<button class="danger" onclick="deleteGenericPost('pajaros', ${originalIdx})">Eliminar</button>` : ''}
@@ -363,13 +521,14 @@
 
                 htmlOutput += `
                     <div class="rarity-category-group">
-                        <div class="rarity-category-header" style="background: ${rObj.style};">
-                            <span>Rareza: ${rObj.name} (${rPosts.length})</span>${addBtnHtml}
+                        <div class="rarity-category-header" style="background: #36c;">
+                            <span>Listado Ordenado por Dinero (${sortedPosts.length})</span>
                         </div>
-                        <div class="rarity-category-body">${contentHtml}${addFormHtml}</div>
+                        <div class="rarity-category-body">${contentHtml}</div>
                     </div>
                 `;
-            });
+            }
+
             container.innerHTML = htmlOutput;
         }
 
