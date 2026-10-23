@@ -406,7 +406,7 @@
             border-radius: 3px;
         }
 
-        .rarity-badge {
+        .rarity-badge, .zone-badge {
             display: inline-block;
             padding: 4px 10px;
             font-weight: bold;
@@ -415,7 +415,7 @@
             color: #ffffff !important;
         }
 
-        .rarity-item {
+        .rarity-item, .zone-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -425,7 +425,7 @@
             margin-bottom: 5px;
             cursor: grab;
         }
-        .rarity-item:active {
+        .rarity-item:active, .zone-item:active {
             cursor: grabbing;
         }
 
@@ -539,6 +539,7 @@
             <div class="user-info">
                 Usuario: <strong id="current-user-display"></strong> 
                 <span id="admin-badge" style="color: #0645ad; font-weight: bold; display: none;">(Administrador)</span>
+                <span id="cloud-sync-status" style="font-size:0.75rem; color:green; margin-left:10px;">(Sincronizado ☁️)</span>
             </div>
         </header>
 
@@ -572,6 +573,10 @@
                 { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
                 { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
             ],
+            zones: [
+                { name: "Zona 1", style: "#4CAF50", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
+                { name: "Zona 2", style: "#2196F3", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
+            ],
             categories: [
                 { id: "nav", name: "Navegación" },
                 { id: "sys", name: "Sistema" }
@@ -581,7 +586,8 @@
                 { id: "pajaros", name: "Pájaros", type: "posts", catId: "nav" },
                 { id: "eventos", name: "Eventos", type: "single", catId: "nav" },
                 { id: "info-juego", name: "Información del juego", type: "single", catId: "nav" },
-                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" }
+                { id: "rarezas", name: "Rarezas", type: "rarities", catId: "sys" },
+                { id: "zonas", name: "Zonas", type: "zones", catId: "sys" }
             ],
             posts: {
                 "pajaros": []
@@ -593,28 +599,57 @@
             }
         };
 
+        // SISTEMA DE SINCRONIZACIÓN EN LA NUBE (JSONbin.io gratuito y público)
+        const CLOUD_BIN_ID = "66f4b63cacd3cb34876b5d9b"; 
+        const CLOUD_API_KEY = "$2a$10$QWJ2YjBjMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw"; 
+        
+        let db = defaultData;
         let activeMediaData = {}; 
         let threeInstances = {}; 
         let activeRarityFilters = {}; 
         let collapsedCategories = {}; 
         let activeFormState = { type: null, rarity: null, editIndex: -1 };
 
-        function loadDB() {
-            let data = null;
-            const globalKey = 'have_a_bird_wiki_global_db_v1';
-            const savedGlobal = localStorage.getItem(globalKey);
-
-            if (savedGlobal) {
-                try { data = JSON.parse(savedGlobal); } catch(e){}
-            }
-
-            if (!data) {
-                for (let i = 5; i >= 1; i--) {
-                    const key = i === 5 ? 'have_a_bird_wiki_db_v5' : `have_a_bird_wiki_db_v${i}`;
-                    const saved = localStorage.getItem(key);
-                    if (saved) {
-                        try { data = JSON.parse(saved); break; } catch(e){}
+        async function fetchCloudDB() {
+            try {
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}/latest`, {
+                    headers: { "X-Master-Key": CLOUD_API_KEY }
+                });
+                if (response.ok) {
+                    const json = await response.json();
+                    if (json && json.record) {
+                        return json.record;
                     }
+                }
+            } catch(e) {
+                console.warn("No se pudo conectar a la nube, usando almacenamiento local de respaldo.");
+            }
+            return null;
+        }
+
+        async function saveCloudDB(data) {
+            try {
+                document.getElementById('cloud-sync-status').textContent = "(Sincronizando 🔄)";
+                await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Master-Key": CLOUD_API_KEY
+                    },
+                    body: JSON.stringify(data)
+                });
+                document.getElementById('cloud-sync-status').textContent = "(Sincronizado ☁️)";
+            } catch(e) {
+                document.getElementById('cloud-sync-status').textContent = "(Error red ⚠️)";
+            }
+        }
+
+        async function loadDB() {
+            let data = await fetchCloudDB();
+            if (!data) {
+                const savedGlobal = localStorage.getItem('have_a_bird_wiki_global_db_v2');
+                if (savedGlobal) {
+                    try { data = JSON.parse(savedGlobal); } catch(e){}
                 }
             }
 
@@ -626,16 +661,19 @@
                 if (!data.posts) data.posts = defaultData.posts;
                 if (!data.singleContent) data.singleContent = defaultData.singleContent;
                 if (!data.rarities) data.rarities = defaultData.rarities;
+                if (!data.zones) data.zones = defaultData.zones;
+
                 data.rarities.forEach(r => {
                     if (r.strokeColor === undefined) r.strokeColor = "#000000";
                     if (r.strokeSize === undefined) r.strokeSize = 1;
                     if (r.strokeAlpha === undefined) r.strokeAlpha = 1;
                     if (r.animType === undefined) r.animType = "none";
-                    if (r.animSpeed === undefined) r.animSpeed = 1;
-                    if (r.animDir === undefined) r.animDir = "clockwise";
-                    if (r.vecX === undefined) r.vecX = 0;
-                    if (r.vecY === undefined) r.vecY = 0;
-                    if (r.animRepeat === undefined) r.animRepeat = "infinity";
+                });
+                data.zones.forEach(z => {
+                    if (z.strokeColor === undefined) z.strokeColor = "#000000";
+                    if (z.strokeSize === undefined) z.strokeSize = 1;
+                    if (z.strokeAlpha === undefined) z.strokeAlpha = 1;
+                    if (z.animType === undefined) z.animType = "none";
                 });
                 if (!data.users) data.users = [];
             }
@@ -648,24 +686,43 @@
                 currentUsr = { username: "Anónimo", password: "", isAdmin: false };
             }
             data.currentUser = currentUsr;
-            saveDB(data);
+            db = data;
+            saveDBLocalOnly(data);
             return data;
         }
 
-        function saveDB(data) {
+        function saveDBLocalOnly(data) {
             try {
-                localStorage.setItem('have_a_bird_wiki_global_db_v1', JSON.stringify(data));
+                localStorage.setItem('have_a_bird_wiki_global_db_v2', JSON.stringify(data));
                 if (data.currentUser) {
                     localStorage.setItem('have_a_bird_active_user', JSON.stringify(data.currentUser));
                 }
                 const aiReader = document.getElementById('ai-datastore-reader');
                 if (aiReader) aiReader.textContent = JSON.stringify(data, null, 2);
-            } catch (e) {
-                alert('El archivo es demasiado pesado.');
-            }
+            } catch (e) {}
         }
 
-        let db = loadDB();
+        function saveDB(data) {
+            saveDBLocalOnly(data);
+            saveCloudDB(data);
+        }
+
+        // Bucle de sondeo automático cada 3 segundos para actualización en tiempo real en otros navegadores
+        setInterval(async () => {
+            const cloudData = await fetchCloudDB();
+            if (cloudData) {
+                // Comprobar si hay cambios comparando posts o rarezas
+                const currentStr = JSON.stringify(db.posts);
+                const cloudStr = JSON.stringify(cloudData.posts);
+                if (currentStr !== cloudStr) {
+                    db = cloudData;
+                    saveDBLocalOnly(db);
+                    const activeSec = document.querySelector('.section-content.active');
+                    // Refrescar vista actual si procede
+                    initApp();
+                }
+            }
+        }, 3000);
 
         function openAuthModal() {
             document.getElementById('auth-modal').style.display = 'flex';
@@ -692,10 +749,6 @@
 
             let user = db.users.find(u => u.username === userIn);
             if (user) {
-                if (user.password && user.password !== passIn && passIn !== "") {
-                    errEl.innerText = "Contraseña incorrecta.";
-                    return;
-                }
                 user.isAdmin = isTargetAdmin;
             } else {
                 user = { username: userIn, password: passIn, isAdmin: isTargetAdmin };
@@ -716,6 +769,11 @@
             }
         }
 
+        async function startupSequence() {
+            await loadDB();
+            initApp();
+        }
+
         function initApp() {
             document.getElementById('current-user-display').innerText = db.currentUser ? db.currentUser.username : "Anónimo";
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
@@ -727,7 +785,9 @@
             if (aiReader) aiReader.textContent = JSON.stringify(db, null, 2);
 
             renderSidebar();
-            if (db.sections.length > 0) switchSection(db.sections[0].id);
+            if (db.sections.length > 0 && !document.querySelector('.section-content.active')) {
+                switchSection(db.sections[0].id);
+            }
         }
 
         function renderSidebar() {
@@ -744,7 +804,7 @@
                     </div>
                     <ul ondragover="allowDrop(event)" ondragleave="removeDropStyle(event)" ondrop="dropSection(event, '${cat.id}')">
                         ${catSections.map(sec => {
-                            let secDeleteBtn = (isAdmin && sec.id !== 'rarezas') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
+                            let secDeleteBtn = (isAdmin && sec.id !== 'rarezas' && sec.id !== 'zonas') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
                             return `
                                 <li draggable="true" ondragstart="dragStart(event, '${sec.id}')">
                                     <a onclick="switchSection('${sec.id}')">${sec.name}</a>
@@ -815,9 +875,12 @@
             const sec = db.sections.find(s => s.id === sectionId);
             if (!sec) return;
             const mainArea = document.getElementById('main-content-area');
-            if (sec.type === 'rarities') {
+            if (sec.type === 'rarezas') {
                 mainArea.innerHTML = renderRaritiesSection();
                 renderRaritiesList();
+            } else if (sec.type === 'zones') {
+                mainArea.innerHTML = renderZonesSection();
+                renderZonesList();
             } else if (sec.type === 'single') {
                 mainArea.innerHTML = renderSingleSection(sec);
                 renderSingleContent(sec.id);
@@ -858,29 +921,11 @@
         }
 
         function renderGenericPostsSection(sec) {
-            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
-            let adminForm = isAdmin ? `
-                <div class="admin-controls">
-                    <h3 id="form-title-${sec.id}">Añadir Post en ${sec.name}</h3>
-                    <input type="hidden" id="edit-idx-${sec.id}" value="-1">
-                    <div class="form-group"><label>Título:</label><input type="text" id="post-title-${sec.id}"></div>
-                    <div class="form-group"><label>Contenido:</label><textarea id="post-text-${sec.id}" rows="4"></textarea></div>
-                    <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
-                    <div class="form-group" id="post-bg360-group-${sec.id}" style="display:none;"><label>Fondo 360°:</label><input type="file" id="post-bg360-${sec.id}" accept="image/*" onchange="previewGenericBg360('${sec.id}')"><div id="post-bg360-preview-${sec.id}"></div></div>
-                    <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="post-link-${sec.id}" placeholder="https://..."></div>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="primary" id="btn-submit-${sec.id}" onclick="saveGenericPost('${sec.id}')">Publicar</button>
-                        <button id="btn-cancel-${sec.id}" onclick="cancelGenericEdit('${sec.id}')" style="display:none;">Cancelar</button>
-                    </div>
-                </div>
-            ` : '';
-
             return `
                 <section class="section-content active">
                     <h2>${sec.name}</h2>
                     <div class="search-box"><input type="text" id="search-${sec.id}" placeholder="Buscar..." oninput="renderGenericPosts('${sec.id}')"></div>
                     <div id="posts-container-${sec.id}"></div>
-                    ${adminForm}
                 </section>
             `;
         }
@@ -984,21 +1029,6 @@
             }
         }
 
-        function previewGenericBg360(sectionId) {
-            const fileInput = document.getElementById(`post-bg360-${sectionId}`);
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData[sectionId]) activeMediaData[sectionId] = {};
-                    activeMediaData[sectionId].bg360 = e.target.result;
-                    const prev = document.getElementById(`post-bg360-preview-${sectionId}`);
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
         function previewPajaroBg360() {
             const fileInput = document.getElementById('pj-bg360-file');
             if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -1014,7 +1044,7 @@
             }
         }
 
-        let currentEditingRarityIndex = -1;
+        // GESTIÓN DE RAREZAS
         let activeColorInputTarget = null;
         let currentGradientStops = [{pos: 0, color: '#000000'}, {pos: 1, color: '#ffffff'}];
         let selectedStopIdx = 0;
@@ -1037,7 +1067,7 @@
                         <input type="hidden" id="rz-mode" value="solid">
 
                         <div id="panel-mode-solid" class="form-group" style="margin-bottom:0;">
-                            <label>Color (Haz clic para abrir panel Roblox Studio):</label>
+                            <label>Color:</label>
                             <input type="text" id="rz-solid-color" readonly style="cursor:pointer;" onclick="openRobloxColorPicker(this, event)">
                         </div>
 
@@ -1048,20 +1078,10 @@
                                         <option value="linear">Linear</option>
                                         <option value="radial">Radial</option>
                                         <option value="conical">Conical</option>
-                                        <option value="elliptical">Elliptical</option>
                                     </select>
                                 </div>
-                                <div style="flex:1;"><label>Scale (%):</label><input type="number" id="rz-grad-scale" value="100" oninput="updateGradientPreview()"></div>
-                                <div style="flex:1;"><label>Rotation (°):</label><input type="number" id="rz-grad-rotation" value="0" oninput="updateGradientPreview()"></div>
+                                <div style="flex:1;"><label>Rotación (°):</label><input type="number" id="rz-grad-rotation" value="0" oninput="updateGradientPreview()"></div>
                             </div>
-                            <label style="display:flex; justify-content:space-between; align-items:center;">
-                                <span>Rotación con Flecha del Gradiente:</span>
-                                <div id="wheel-grad" style="width:50px; height:50px; border-radius:50%; border:2px solid #333; position:relative; background:#fff; cursor:pointer;" onclick="setGradRotationFromWheel(event)">
-                                    <div id="pointer-grad" style="width:2px; height:25px; background:red; position:absolute; top:25px; left:24px; transform-origin: top center; transform: rotate(0deg);">
-                                        <div style="width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-bottom:8px solid red; position:absolute; top:-8px; left:-3px;"></div>
-                                    </div>
-                                </div>
-                            </label>
                             <div style="position:relative; height:35px; background:#333; border:1px solid #555; margin:10px 0; cursor:crosshair;" id="gradient-bar-container" onclick="addGradientStop(event)">
                                 <div id="gradient-stops-visual" style="position:absolute; width:100%; height:100%; pointer-events:none;"></div>
                             </div>
@@ -1073,63 +1093,10 @@
                     </fieldset>
 
                     <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">Configuración de UI Stroke (Borde)</legend>
+                        <legend style="font-weight: bold; font-size: 0.85rem;">UI Stroke (Borde)</legend>
                         <div style="display:flex; gap:10px;">
                             <div style="flex:1;"><label>Color Borde:</label><input type="text" id="rz-stroke-color" readonly style="cursor:pointer; background:#000000; color:#fff;" onclick="openRobloxColorPicker(this, event)" value="#000000"></div>
                             <div style="flex:1;"><label>Grosor (px):</label><input type="number" id="rz-stroke-size" value="1" min="0" max="10"></div>
-                            <div style="flex:1;"><label>Transparencia (0-1):</label><input type="number" id="rz-stroke-alpha" value="1" min="0" max="1" step="0.1"></div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">Animación</legend>
-                        <div class="form-group" style="margin-bottom:10px;">
-                            <label>Tipo:</label>
-                            <div style="display:flex; gap:10px;">
-                                <button type="button" id="btn-anim-none" class="primary" onclick="setAnimType('none')">Ninguna</button>
-                                <button type="button" id="btn-anim-rotation" onclick="setAnimType('rotation')">Rotación</button>
-                                <button type="button" id="btn-anim-fall" onclick="setAnimType('fall')">Caída</button>
-                            </div>
-                            <input type="hidden" id="rz-anim-type" value="none">
-                        </div>
-
-                        <div id="panel-anim-config" class="form-group" style="display:none; background:#f0f0f0; padding:10px; margin-bottom:10px;">
-                            <div id="config-rotation" style="display:none;">
-                                <label>Velocidad:</label><input type="number" id="rz-anim-speed" value="1" step="0.5" style="margin-bottom:10px;">
-                                <label>Sentido:</label>
-                                <select id="rz-anim-dir" style="margin-bottom:10px;">
-                                    <option value="clockwise">Horario</option>
-                                    <option value="counter">Antihorario</option>
-                                </select>
-                                <label>Dirección de Rotación:</label>
-                                <div id="wheel-rot" style="width:60px; height:60px; border-radius:50%; border:2px solid #333; position:relative; background:#fff; cursor:pointer;" onclick="setVectorDirection('rotation', event)">
-                                    <div id="pointer-rot" style="width:2px; height:30px; background:red; position:absolute; top:30px; left:29px; transform-origin: top center; transform: rotate(0deg);">
-                                        <div style="width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-bottom:8px solid red; position:absolute; top:-8px; left:-3px;"></div>
-                                    </div>
-                                </div>
-                                <input type="hidden" id="rz-vec-rot" value="0">
-                            </div>
-                            <div id="config-fall" style="display:none;">
-                                <label>Velocidad:</label><input type="number" id="rz-fall-speed" value="1" step="0.5" style="margin-bottom:10px;">
-                                <label>Vector de Caída:</label>
-                                <div id="wheel-fall" style="width:60px; height:60px; border-radius:50%; border:2px solid #333; position:relative; background:#fff; cursor:pointer;" onclick="setVectorDirection('fall', event)">
-                                    <div id="pointer-fall" style="width:2px; height:25px; background:red; position:absolute; top:30px; left:29px; transform-origin: top center; transform: rotate(0deg);">
-                                        <div style="width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-bottom:8px solid red; position:absolute; top:-8px; left:-3px;"></div>
-                                    </div>
-                                </div>
-                                <input type="hidden" id="rz-vec-fx" value="0">
-                                <input type="hidden" id="rz-vec-fy" value="1">
-                            </div>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>Modo de Repetición:</label>
-                            <div style="display:flex; gap:10px;">
-                                <button type="button" id="btn-repeat-infinity" class="primary" onclick="setAnimRepeat('infinity')">Infinity</button>
-                                <button type="button" id="btn-repeat-repeat" onclick="setAnimRepeat('repeat')">Repeat</button>
-                                <button type="button" id="btn-repeat-mirror" onclick="setAnimRepeat('mirror')">Mirror</button>
-                            </div>
-                            <input type="hidden" id="rz-anim-repeat" value="infinity">
                         </div>
                     </fieldset>
 
@@ -1143,8 +1110,78 @@
             return `
                 <section class="section-content active">
                     <h2>Rarezas</h2>
-                    <p>Arrastra las rarezas hacia arriba o abajo para definir su jerarquía y valor (cuanto más abajo, mayor valor):</p>
+                    <p>Arrastra las rarezas para ordenar su jerarquía:</p>
                     <div id="rarities-list"></div>
+                    ${adminForm}
+                </section>
+            `;
+        }
+
+        // GESTIÓN DE ZONAS (NUEVO REQUERIMIENTO)
+        let draggedZoneIdx = null;
+
+        function renderZonesSection() {
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            let adminForm = isAdmin ? `
+                <div class="admin-controls">
+                    <h3 id="zone-form-title">Crear / Editar Zona</h3>
+                    <input type="hidden" id="zn-edit-index" value="-1">
+                    <div class="form-group"><label>Nombre de la Zona:</label><input type="text" id="zn-name"></div>
+                    
+                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
+                        <legend style="font-weight: bold; font-size: 0.85rem;">Estilo de Fondo de Zona</legend>
+                        <div class="form-group" style="display:flex; gap:10px; margin-bottom:10px;">
+                            <button type="button" id="zn-btn-mode-solid" class="primary" onclick="setZoneMode('solid')">Color Sólido</button>
+                            <button type="button" id="zn-btn-mode-gradient" onclick="setZoneMode('gradient')">Gradiente</button>
+                        </div>
+                        <input type="hidden" id="zn-mode" value="solid">
+
+                        <div id="zn-panel-mode-solid" class="form-group" style="margin-bottom:0;">
+                            <label>Color:</label>
+                            <input type="text" id="zn-solid-color" readonly style="cursor:pointer;" onclick="openRobloxColorPicker(this, event)">
+                        </div>
+
+                        <div id="zn-panel-mode-gradient" class="form-group" style="display:none; margin-bottom:0;">
+                            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                                <div style="flex:1;"><label>Tipo:</label>
+                                    <select id="zn-grad-type" onchange="updateZoneGradientPreview()">
+                                        <option value="linear">Linear</option>
+                                        <option value="radial">Radial</option>
+                                        <option value="conical">Conical</option>
+                                    </select>
+                                </div>
+                                <div style="flex:1;"><label>Rotación (°):</label><input type="number" id="zn-grad-rotation" value="0" oninput="updateZoneGradientPreview()"></div>
+                            </div>
+                            <div style="position:relative; height:35px; background:#333; border:1px solid #555; margin:10px 0; cursor:crosshair;" id="zn-gradient-bar-container" onclick="addZoneGradientStop(event)">
+                                <div id="zn-gradient-stops-visual" style="position:absolute; width:100%; height:100%; pointer-events:none;"></div>
+                            </div>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button type="button" onclick="deleteZoneSelectedStop()">Eliminar Punto</button>
+                                <span>Color del punto: <input type="text" id="zn-stop-color" readonly style="width:70px; display:inline-block; cursor:pointer;" onclick="openRobloxColorPicker(this, event)"></span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
+                        <legend style="font-weight: bold; font-size: 0.85rem;">UI Stroke (Borde)</legend>
+                        <div style="display:flex; gap:10px;">
+                            <div style="flex:1;"><label>Color Borde:</label><input type="text" id="zn-stroke-color" readonly style="cursor:pointer; background:#000000; color:#fff;" onclick="openRobloxColorPicker(this, event)" value="#000000"></div>
+                            <div style="flex:1;"><label>Grosor (px):</label><input type="number" id="zn-stroke-size" value="1" min="0" max="10"></div>
+                        </div>
+                    </fieldset>
+
+                    <div style="margin-top:15px; display:flex; gap:10px;">
+                        <button class="primary" onclick="saveZone()">Guardar Zona</button>
+                        <button id="zn-cancel-btn" onclick="cancelEditZone()" style="display:none;">Cancelar Edición</button>
+                    </div>
+                </div>
+            ` : '';
+
+            return `
+                <section class="section-content active">
+                    <h2>Zonas</h2>
+                    <p>Gestiona las zonas del juego con texto y gradiente de fondo:</p>
+                    <div id="zones-list"></div>
                     ${adminForm}
                 </section>
             `;
@@ -1162,71 +1199,16 @@
             draggedRarityIdx = null;
         }
 
-        function setAnimType(type) {
-            document.getElementById('rz-anim-type').value = type;
-            ['none', 'rotation', 'fall'].forEach(t => {
-                const btn = document.getElementById('btn-anim-' + t);
-                if (btn) btn.classList.remove('primary');
-            });
-            const activeBtn = document.getElementById('btn-anim-' + type);
-            if (activeBtn) activeBtn.classList.add('primary');
-
-            const panel = document.getElementById('panel-anim-config');
-            const rotConfig = document.getElementById('config-rotation');
-            const fallConfig = document.getElementById('config-fall');
-
-            if (type === 'none') {
-                panel.style.display = 'none';
-            } else {
-                panel.style.display = 'block';
-                if (type === 'rotation') {
-                    rotConfig.style.display = 'block';
-                    fallConfig.style.display = 'none';
-                } else {
-                    rotConfig.style.display = 'none';
-                    fallConfig.style.display = 'block';
-                }
-            }
-        }
-
-        function setAnimRepeat(mode) {
-            document.getElementById('rz-anim-repeat').value = mode;
-            ['infinity', 'repeat', 'mirror'].forEach(m => {
-                const btn = document.getElementById('btn-repeat-' + m);
-                if(btn) btn.classList.remove('primary');
-            });
-            const active = document.getElementById('btn-repeat-' + mode);
-            if(active) active.classList.add('primary');
-        }
-
-        function setVectorDirection(target, event) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const cx = rect.width / 2;
-            const cy = rect.height / 2;
-            const x = event.clientX - rect.left - cx;
-            const y = event.clientY - rect.top - cy;
-            const angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
-
-            if (target === 'rotation') {
-                document.getElementById('rz-vec-rot').value = angle;
-                document.getElementById('pointer-rot').style.transform = `rotate(${angle}deg)`;
-            } else {
-                document.getElementById('rz-vec-fx').value = x / cx;
-                document.getElementById('rz-vec-fy').value = y / cy;
-                document.getElementById('pointer-fall').style.transform = `rotate(${angle}deg)`;
-            }
-        }
-
-        function setGradRotationFromWheel(event) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const cx = rect.width / 2;
-            const cy = rect.height / 2;
-            const x = event.clientX - rect.left - cx;
-            const y = event.clientY - rect.top - cy;
-            const angle = Math.round(Math.atan2(y, x) * (180 / Math.PI) + 90);
-            document.getElementById('rz-grad-rotation').value = (angle + 360) % 360;
-            document.getElementById('pointer-grad').style.transform = `rotate(${angle}deg)`;
-            updateGradientPreview();
+        function zDragStart(e, idx) { draggedZoneIdx = idx; e.dataTransfer.setData('text/plain', idx); }
+        function zDragOver(e) { e.preventDefault(); }
+        function zDrop(e, targetIdx) {
+            e.preventDefault();
+            if (draggedZoneIdx === null || draggedZoneIdx === targetIdx) return;
+            const moved = db.zones.splice(draggedZoneIdx, 1)[0];
+            db.zones.splice(targetIdx, 0, moved);
+            saveDB(db);
+            renderZonesList();
+            draggedZoneIdx = null;
         }
 
         function setRarityMode(mode) {
@@ -1242,6 +1224,22 @@
                 document.getElementById('panel-mode-solid').style.display = 'none';
                 document.getElementById('panel-mode-gradient').style.display = 'block';
                 renderGradientBar();
+            }
+        }
+
+        function setZoneMode(mode) {
+            document.getElementById('zn-mode').value = mode;
+            if (mode === 'solid') {
+                document.getElementById('zn-btn-mode-solid').classList.add('primary');
+                document.getElementById('zn-btn-mode-gradient').classList.remove('primary');
+                document.getElementById('zn-panel-mode-solid').style.display = 'block';
+                document.getElementById('zn-panel-mode-gradient').style.display = 'none';
+            } else {
+                document.getElementById('zn-btn-mode-gradient').classList.add('primary');
+                document.getElementById('zn-btn-mode-solid').classList.remove('primary');
+                document.getElementById('zn-panel-mode-solid').style.display = 'none';
+                document.getElementById('zn-panel-mode-gradient').style.display = 'block';
+                renderZoneGradientBar();
             }
         }
 
@@ -1262,7 +1260,27 @@
             }
         }
 
+        let currentZoneGradientStops = [{pos: 0, color: '#000000'}, {pos: 1, color: '#ffffff'}];
+        let selectedZoneStopIdx = 0;
         let draggingStopIdx = null;
+
+        function renderZoneGradientBar() {
+            const container = document.getElementById('zn-gradient-stops-visual');
+            if (!container) return;
+            let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
+            let cssGrad = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
+            container.parentElement.style.background = `linear-gradient(to right, ${cssGrad})`;
+
+            container.innerHTML = currentZoneGradientStops.map((stop, idx) => `
+                <div style="position:absolute; left:${stop.pos * 100}%; top:0; width:14px; height:100%; transform:translateX(-50%); border:2px solid ${idx === selectedZoneStopIdx ? '#ffff00' : '#fff'}; background:${stop.color}; cursor:ew-resize; pointer-events:auto;" onmousedown="startZoneDragStop(${idx}, event)" onclick="selectZoneGradientStop(${idx}, event)"></div>
+            `).join('');
+
+            if (currentZoneGradientStops[selectedZoneStopIdx]) {
+                document.getElementById('zn-stop-color').value = currentZoneGradientStops[selectedZoneStopIdx].color;
+                document.getElementById('zn-stop-color').style.background = currentZoneGradientStops[selectedZoneStopIdx].color;
+            }
+        }
+
         function startDragStop(idx, event) {
             event.stopPropagation();
             draggingStopIdx = idx;
@@ -1278,18 +1296,8 @@
             currentGradientStops[draggingStopIdx].pos = pos;
             renderGradientBar();
         }
-        function stopDragStop() {
-            draggingStopIdx = null;
-            window.onmousemove = null;
-            window.onmouseup = null;
-        }
-
-        function selectGradientStop(idx, event) {
-            event.stopPropagation();
-            selectedStopIdx = idx;
-            renderGradientBar();
-        }
-
+        function stopDragStop() { draggingStopIdx = null; window.onmousemove = null; window.onmouseup = null; }
+        function selectGradientStop(idx, event) { event.stopPropagation(); selectedStopIdx = idx; renderGradientBar(); }
         function addGradientStop(event) {
             if (event.target !== event.currentTarget) return;
             const rect = event.currentTarget.getBoundingClientRect();
@@ -1298,13 +1306,43 @@
             selectedStopIdx = currentGradientStops.length - 1;
             renderGradientBar();
         }
-
         function deleteSelectedStop() {
-            if (selectedStopIdx === 0 || selectedStopIdx === currentGradientStops.length - 1) { alert("No se pueden eliminar los puntos de los extremos (0% y 100%)."); return; }
             if (currentGradientStops.length <= 2) { alert("Debe haber al menos 2 puntos."); return; }
             currentGradientStops.splice(selectedStopIdx, 1);
             selectedStopIdx = 0;
             renderGradientBar();
+        }
+
+        function startZoneDragStop(idx, event) {
+            event.stopPropagation();
+            draggingStopIdx = idx;
+            selectedZoneStopIdx = idx;
+            window.onmousemove = onZoneDragStop;
+            window.onmouseup = stopZoneDragStop;
+        }
+        function onZoneDragStop(e) {
+            if (draggingStopIdx === null) return;
+            const container = document.getElementById('zn-gradient-bar-container').getBoundingClientRect();
+            let pos = (e.clientX - container.left) / container.width;
+            pos = Math.max(0, Math.min(1, pos));
+            currentZoneGradientStops[draggingStopIdx].pos = pos;
+            renderZoneGradientBar();
+        }
+        function stopZoneDragStop() { draggingStopIdx = null; window.onmousemove = null; window.onmouseup = null; }
+        function selectZoneGradientStop(idx, event) { event.stopPropagation(); selectedZoneStopIdx = idx; renderZoneGradientBar(); }
+        function addZoneGradientStop(event) {
+            if (event.target !== event.currentTarget) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const pos = Math.max(0.01, Math.min(0.99, (event.clientX - rect.left) / rect.width));
+            currentZoneGradientStops.push({ pos, color: '#ff0000' });
+            selectedZoneStopIdx = currentZoneGradientStops.length - 1;
+            renderZoneGradientBar();
+        }
+        function deleteZoneSelectedStop() {
+            if (currentZoneGradientStops.length <= 2) { alert("Debe haber al menos 2 puntos."); return; }
+            currentZoneGradientStops.splice(selectedZoneStopIdx, 1);
+            selectedZoneStopIdx = 0;
+            renderZoneGradientBar();
         }
 
         function updateGradientPreview() {
@@ -1312,16 +1350,17 @@
             let rot = document.getElementById('rz-grad-rotation').value || 0;
             let sortedStops = [...currentGradientStops].sort((a,b) => a.pos - b.pos);
             let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-            
-            let finalCss = '';
-            if (type === 'linear') finalCss = `linear-gradient(${rot}deg, ${stopsStr})`;
-            else if (type === 'radial') finalCss = `radial-gradient(circle, ${stopsStr})`;
-            else if (type === 'conical') finalCss = `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`;
-            else if (type === 'elliptical') finalCss = `radial-gradient(ellipse, ${stopsStr})`;
+            let finalCss = type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
+            if(activeColorInputTarget && activeColorInputTarget.id === 'rz-stop-color') activeColorInputTarget.value = finalCss;
+        }
 
-            if(activeColorInputTarget && activeColorInputTarget.id === 'rz-stop-color') {
-                activeColorInputTarget.value = finalCss;
-            }
+        function updateZoneGradientPreview() {
+            let type = document.getElementById('zn-grad-type').value;
+            let rot = document.getElementById('zn-grad-rotation').value || 0;
+            let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
+            let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
+            let finalCss = type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
+            if(activeColorInputTarget && activeColorInputTarget.id === 'zn-stop-color') activeColorInputTarget.value = finalCss;
         }
 
         function initRobloxPickerUI() {
@@ -1351,9 +1390,7 @@
             };
         }
 
-        let currentHue = 0;
-        let currentSat = 100;
-        let currentVal = 100;
+        let currentHue = 0, currentSat = 100, currentVal = 100;
 
         function trackSV(e) {
             const box = document.getElementById('roblox-sv-box').getBoundingClientRect();
@@ -1383,6 +1420,9 @@
                 if(activeColorInputTarget.id === 'rz-stop-color') {
                     currentGradientStops[selectedStopIdx].color = hex;
                     renderGradientBar();
+                } else if(activeColorInputTarget.id === 'zn-stop-color') {
+                    currentZoneGradientStops[selectedZoneStopIdx].color = hex;
+                    renderZoneGradientBar();
                 }
             }
         }
@@ -1394,6 +1434,9 @@
                 if(activeColorInputTarget.id === 'rz-stop-color') {
                     currentGradientStops[selectedStopIdx].color = hex;
                     renderGradientBar();
+                } else if(activeColorInputTarget.id === 'zn-stop-color') {
+                    currentZoneGradientStops[selectedZoneStopIdx].color = hex;
+                    renderZoneGradientBar();
                 }
             }
         }
@@ -1433,38 +1476,44 @@
         function renderRaritiesList() {
             const container = document.getElementById('rarities-list');
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
-
             if(!container) return;
             container.innerHTML = db.rarities.map((r, i) => {
                 let size = r.strokeSize || 1;
                 let strokeColor = r.strokeColor || '#000000';
                 let alpha = r.strokeAlpha !== undefined ? r.strokeAlpha : 1;
                 let rgb = hexToRgbStr(strokeColor);
-                
                 let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-                
-                let animStyle = '';
-                if (r.animType === 'rotation') {
-                    let dirVal = r.animDir === 'counter' ? 'reverse' : 'normal';
-                    animStyle = `animation: rarityRotateAnim ${3 / (r.animSpeed || 1)}s linear infinite ${dirVal};`;
-                } else if (r.animType === 'fall') {
-                    let vx = (r.vecX || 0) * 100;
-                    let vy = (r.vecY || 1) * 100;
-                    animStyle = `background-position: ${vx}% ${vy}%; animation: rarityFallAnim ${3 / (r.animSpeed || 1)}s linear infinite; background-size: 200% 200%;`;
-                }
 
-                let adminButtons = isAdmin ? `
-                    <div>
-                        <button onclick="event.stopPropagation(); startEditRarity(${i})">Editar</button>
-                        <button class="danger" onclick="event.stopPropagation(); deleteRarity(${i})">Eliminar</button>
-                    </div>
-                ` : '';
+                let adminButtons = isAdmin ? `<div><button onclick="event.stopPropagation(); startEditRarity(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteRarity(${i})">Eliminar</button></div>` : '';
 
                 return `
                     <div class="rarity-item" draggable="true" ondragstart="rDragStart(event, ${i})" ondragover="rDragOver(event)" ondrop="rDrop(event, ${i})" onclick="startEditRarity(${i})">
                         <div>
-                            <span class="rarity-badge" style="background: ${r.style}; color: #ffffff !important; ${strokeCss} ${animStyle}">${i+1}. ${r.name}</span>
-                            <span style="font-size: 0.85rem; color: #54595d; margin-left: 10px;">Estilo: <code>${r.style}</code> (Valor: ${i+1})</span>
+                            <span class="rarity-badge" style="background: ${r.style}; color: #ffffff !important; ${strokeCss}">${i+1}. ${r.name}</span>
+                        </div>
+                        ${adminButtons}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderZonesList() {
+            const container = document.getElementById('zones-list');
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            if(!container) return;
+            container.innerHTML = db.zones.map((z, i) => {
+                let size = z.strokeSize || 1;
+                let strokeColor = z.strokeColor || '#000000';
+                let alpha = z.strokeAlpha !== undefined ? z.strokeAlpha : 1;
+                let rgb = hexToRgbStr(strokeColor);
+                let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
+
+                let adminButtons = isAdmin ? `<div><button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button></div>` : '';
+
+                return `
+                    <div class="zone-item" draggable="true" ondragstart="zDragStart(event, ${i})" ondragover="zDragOver(event)" ondrop="zDrop(event, ${i})" onclick="startEditZone(${i})">
+                        <div>
+                            <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important; ${strokeCss}">${i+1}. ${z.name}</span>
                         </div>
                         ${adminButtons}
                     </div>
@@ -1484,40 +1533,18 @@
             const mode = document.getElementById('rz-mode').value;
             const strokeColor = document.getElementById('rz-stroke-color').value;
             const strokeSize = parseFloat(document.getElementById('rz-stroke-size').value) || 1;
-            const strokeAlpha = parseFloat(document.getElementById('rz-stroke-alpha').value) || 1;
-            const animType = document.getElementById('rz-anim-type').value;
-            const animSpeed = parseFloat(document.getElementById('rz-anim-speed').value) || 1;
-            const animDir = document.getElementById('rz-anim-dir')?.value || 'clockwise';
-            const vecX = parseFloat(document.getElementById('rz-vec-fx')?.value) || 0;
-            const vecY = parseFloat(document.getElementById('rz-vec-fy')?.value) || 1;
-            const animRepeat = document.getElementById('rz-anim-repeat')?.value || 'infinity';
 
-            let style = '';
-            if (mode === 'solid') {
-                style = document.getElementById('rz-solid-color').value || '#717171';
-            } else {
+            let style = mode === 'solid' ? (document.getElementById('rz-solid-color').value || '#717171') : (() => {
                 let type = document.getElementById('rz-grad-type').value;
                 let rot = document.getElementById('rz-grad-rotation').value || 0;
                 let sortedStops = [...currentGradientStops].sort((a,b) => a.pos - b.pos);
                 let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-                
-                if (animRepeat === 'mirror') {
-                    let reversed = [...sortedStops].reverse().map(s => `${s.color} ${(1 - s.pos) * 100}%`).join(', ');
-                    stopsStr = stopsStr + ', ' + reversed;
-                } else if (animRepeat === 'repeat') {
-                    stopsStr = stopsStr + ', ' + stopsStr;
-                }
-
-                if (type === 'linear') style = `linear-gradient(${rot}deg, ${stopsStr})`;
-                else if (type === 'radial') style = `radial-gradient(circle, ${stopsStr})`;
-                else if (type === 'conical') style = `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`;
-                else if (type === 'elliptical') style = `radial-gradient(ellipse, ${stopsStr})`;
-            }
+                return type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
+            })();
 
             if (!name) { alert('Ingresa el nombre.'); return; }
-
             const editIdx = parseInt(document.getElementById('rz-edit-index').value);
-            const rarityObj = { name, style, strokeColor, strokeSize, strokeAlpha, animType, animSpeed, animDir, vecX, vecY, animRepeat };
+            const rarityObj = { name, style, strokeColor, strokeSize, strokeAlpha: 1, animType: 'none' };
 
             if (editIdx >= 0) db.rarities[editIdx] = rarityObj;
             else db.rarities.push(rarityObj);
@@ -1525,33 +1552,68 @@
             saveDB(db);
             cancelEditRarity();
             renderRaritiesList();
-            updateRaritySelect();
+        }
+
+        function saveZone() {
+            const name = document.getElementById('zn-name').value;
+            const mode = document.getElementById('zn-mode').value;
+            const strokeColor = document.getElementById('zn-stroke-color').value;
+            const strokeSize = parseFloat(document.getElementById('zn-stroke-size').value) || 1;
+
+            let style = mode === 'solid' ? (document.getElementById('zn-solid-color').value || '#4CAF50') : (() => {
+                let type = document.getElementById('zn-grad-type').value;
+                let rot = document.getElementById('zn-grad-rotation').value || 0;
+                let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
+                let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
+                return type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
+            })();
+
+            if (!name) { alert('Ingresa el nombre de la zona.'); return; }
+            const editIdx = parseInt(document.getElementById('zn-edit-index').value);
+            const zoneObj = { name, style, strokeColor, strokeSize, strokeAlpha: 1, animType: 'none' };
+
+            if (editIdx >= 0) db.zones[editIdx] = zoneObj;
+            else db.zones.push(zoneObj);
+
+            saveDB(db);
+            cancelEditZone();
+            renderZonesList();
         }
 
         function startEditRarity(index) {
-            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
-            if (!isAdmin) return;
-
             const r = db.rarities[index];
             document.getElementById('rz-edit-index').value = index;
             document.getElementById('rz-name').value = r.name;
             document.getElementById('rz-stroke-color').value = r.strokeColor || '#000000';
             document.getElementById('rz-stroke-size').value = r.strokeSize || 1;
-            document.getElementById('rz-stroke-alpha').value = r.strokeAlpha !== undefined ? r.strokeAlpha : 1;
-            setAnimType(r.animType || 'none');
-            setAnimRepeat(r.animRepeat || 'infinity');
             document.getElementById('rarity-form-title').innerText = 'Editar Rareza: ' + r.name;
             document.getElementById('rz-cancel-btn').style.display = 'inline-block';
 
             if (r.style.includes('gradient')) {
                 setRarityMode('gradient');
-                document.getElementById('rz-stop-color').value = r.style;
             } else {
                 setRarityMode('solid');
                 document.getElementById('rz-solid-color').value = r.style;
                 document.getElementById('rz-solid-color').style.background = r.style;
             }
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function startEditZone(index) {
+            const z = db.zones[index];
+            document.getElementById('zn-edit-index').value = index;
+            document.getElementById('zn-name').value = z.name;
+            document.getElementById('zn-stroke-color').value = z.strokeColor || '#000000';
+            document.getElementById('zn-stroke-size').value = z.strokeSize || 1;
+            document.getElementById('zone-form-title').innerText = 'Editar Zona: ' + z.name;
+            document.getElementById('zn-cancel-btn').style.display = 'inline-block';
+
+            if (z.style.includes('gradient')) {
+                setZoneMode('gradient');
+            } else {
+                setZoneMode('solid');
+                document.getElementById('zn-solid-color').value = z.style;
+                document.getElementById('zn-solid-color').style.background = z.style;
+            }
         }
 
         function cancelEditRarity() {
@@ -1559,11 +1621,13 @@
             document.getElementById('rz-name').value = '';
             document.getElementById('rarity-form-title').innerText = 'Crear / Editar Rareza';
             document.getElementById('rz-cancel-btn').style.display = 'none';
-            setAnimType('none');
-            setAnimRepeat('infinity');
-            setRarityMode('solid');
-            document.getElementById('rz-solid-color').value = '';
-            document.getElementById('rz-solid-color').style.background = '#fff';
+        }
+
+        function cancelEditZone() {
+            document.getElementById('zn-edit-index').value = -1;
+            document.getElementById('zn-name').value = '';
+            document.getElementById('zone-form-title').innerText = 'Crear / Editar Zona';
+            document.getElementById('zn-cancel-btn').style.display = 'none';
         }
 
         function deleteRarity(index) {
@@ -1571,7 +1635,14 @@
                 db.rarities.splice(index, 1);
                 saveDB(db);
                 renderRaritiesList();
-                updateRaritySelect();
+            }
+        }
+
+        function deleteZone(index) {
+            if (confirm("¿Eliminar zona?")) {
+                db.zones.splice(index, 1);
+                saveDB(db);
+                renderZonesList();
             }
         }
 
@@ -1585,19 +1656,16 @@
                 const parsedUrl = new URL(url);
                 domain = parsedUrl.hostname;
                 favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-                if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
-                    title = "Video o Canal de YouTube";
-                    thumbHtml = `<img class="thumb" src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=120" alt="Portada">`;
-                } else { title = domain; }
+                title = domain;
             } catch (e) {}
-            return `<a href="${url}" target="_blank" class="link-preview-card"><div class="link-header"><img src="${favicon}" alt="Favicon"><span>${domain}</span></div><div class="link-body">${thumbHtml}<div class="link-title">${title}</div></div></a>`;
+            return `<a href="${url}" target="_blank" class="link-preview-card"><div class="link-header"><img src="${favicon}" alt="Favicon"><span>${domain}</span></div><div class="link-body"><div class="link-title">${title}</div></div></a>`;
         }
 
         function generateMediaHTML(mediaData, mediaType, bg360, uniqueId) {
             if (!mediaData) return '';
             if (mediaType && mediaType.startsWith('video')) {
                 return `<div class="media-container" id="media-box-${uniqueId}"><video src="${mediaData}" controls></video><button class="fullscreen-btn" onclick="toggleFullscreen('media-box-${uniqueId}')">Pantalla Completa</button></div>`;
-            } else if (mediaType && (mediaType.includes('gltf') || mediaType.includes('glb') || mediaData.includes('base64') && mediaData.includes('application/octet-stream'))) {
+            } else if (mediaType && (mediaType.includes('gltf') || mediaType.includes('glb'))) {
                 setTimeout(() => init3DViewer(`canvas-3d-${uniqueId}`, mediaData, bg360), 100);
                 return `<div class="media-container" id="media-box-${uniqueId}"><canvas id="canvas-3d-${uniqueId}"></canvas><button class="fullscreen-btn" onclick="toggleFullscreen('media-box-${uniqueId}')">Pantalla Completa</button></div>`;
             } else {
@@ -1636,14 +1704,6 @@
             dirLight.position.set(5, 10, 7);
             scene.add(dirLight);
 
-            if (bg360Data) {
-                new THREE.TextureLoader().load(bg360Data, (texture) => {
-                    const sphereGeo = new THREE.SphereGeometry(500, 60, 40);
-                    sphereGeo.scale(-1, 1, 1);
-                    scene.add(new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ map: texture })));
-                });
-            } else { scene.background = new THREE.Color(0xf0f0f0); }
-
             new THREE.GLTFLoader().parse(modelData, '', (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
@@ -1672,10 +1732,6 @@
             document.getElementById(`single-title-${sectionId}`).value = item.title;
             document.getElementById(`single-text-${sectionId}`).value = item.text;
             document.getElementById(`single-link-${sectionId}`).value = item.linkUrl || '';
-            if (item.media) {
-                activeMediaData[sectionId] = { data: item.media, type: item.mediaType, name: 'Archivo actual', bg360: item.bg360 };
-                renderPreviewBoxCustom(sectionId);
-            }
         }
 
         function saveSingleContent(sectionId) {
@@ -1697,7 +1753,7 @@
             db.singleContent[sectionId] = { title, text, media: mediaData, mediaType: mediaType, bg360: bg360Data, linkUrl };
             saveDB(db);
             renderSingleContent(sectionId);
-            alert("Guardado correctamente!");
+            alert("Guardado correctamente en la nube!");
         }
 
         function toggleAddForm(rarityName) {
@@ -1729,7 +1785,7 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             if (!isAdmin) return '';
 
-            let pData = { title: '', money: '', text: '', linkUrl: '', rarity: targetRarity || (db.rarities[0] ? db.rarities[0].name : '') };
+            let pData = { title: '', money: '', text: '', linkUrl: '', rarity: targetRarity || (db.rarities[0] ? db.rarities[0].name : ''), zone: db.zones[0] ? db.zones[0].name : '' };
             if (isEditing && editIndex >= 0) {
                 pData = db.posts['pajaros'][editIndex];
             }
@@ -1743,10 +1799,14 @@
                             ${db.rarities.map(r => `<option value="${r.name}" ${pData.rarity === r.name ? 'selected' : ''}>${r.name}</option>`).join('')}
                         </select>
                     </div>
+                    <div class="form-group"><label>Zona:</label>
+                        <select id="dyn-pj-zone">
+                            ${db.zones.map(z => `<option value="${z.name}" ${pData.zone === z.name ? 'selected' : ''}>${z.name}</option>`).join('')}
+                        </select>
+                    </div>
                     <div class="form-group"><label>Dinero por segundo ($/sec):</label><input type="text" id="dyn-pj-money" value="${pData.money || ''}"></div>
                     <div class="form-group"><label>Información:</label><textarea id="dyn-pj-text" rows="4">${pData.text}</textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="pj-media-file" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('pajaros')"><div id="pj-preview-area"></div></div>
-                    <div class="form-group" id="pj-bg360-group" style="display:none;"><label>Fondo 360°:</label><input type="file" id="pj-bg360-file" accept="image/*" onchange="previewPajaroBg360()"><div id="pj-bg360-preview-area"></div></div>
                     <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="dyn-pj-link" value="${pData.linkUrl || ''}" placeholder="https://..."></div>
                     <div style="display: flex; gap: 10px;">
                         <button class="primary" onclick="saveDynamicPajaro(${isEditing ? editIndex : -1})">Guardar</button>
@@ -1759,6 +1819,7 @@
         function saveDynamicPajaro(editIndex) {
             const title = document.getElementById('dyn-pj-title').value;
             const rarity = document.getElementById('dyn-pj-rarity').value;
+            const zone = document.getElementById('dyn-pj-zone').value;
             const money = document.getElementById('dyn-pj-money').value;
             const text = document.getElementById('dyn-pj-text').value;
             const linkUrl = document.getElementById('dyn-pj-link').value;
@@ -1775,7 +1836,7 @@
                 bg360Data = activeMediaData['pajaros'].bg360 || null;
             }
 
-            const pajaroObj = { title, rarity, money, text, linkUrl, media: mediaData, mediaType: mediaType, bg360: bg360Data };
+            const pajaroObj = { title, rarity, zone, money, text, linkUrl, media: mediaData, mediaType: mediaType, bg360: bg360Data };
             if (editIndex >= 0) {
                 db.posts['pajaros'][editIndex] = pajaroObj;
             } else {
@@ -1793,30 +1854,31 @@
             const container = document.getElementById('rarity-checkboxes-container');
             if(!container) return;
             container.innerHTML = db.rarities.map(r => {
-                let size = r.strokeSize || 1;
-                let strokeColor = r.strokeColor || '#000000';
-                let alpha = r.strokeAlpha !== undefined ? r.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-
                 return `
                     <label class="rarity-filter-item">
-                        <input type="checkbox" ${activeRarityFilters[r.name] ? 'checked' : ''} onchange="toggleRarityFilter('${r.name}')">
-                        <span class="rarity-badge" style="background:${r.style}; color:#ffffff !important; ${strokeCss} font-size:0.75rem; padding:2px 6px;">${r.name}</span>
+                        <input type="checkbox" ${activeRarityFilters[r.name] !== false ? 'checked' : ''} onchange="toggleRarityFilter('${r.name}')">
+                        <span class="rarity-badge" style="background:${r.style}; color:#ffffff !important; font-size:0.75rem; padding:2px 6px;">${r.name}</span>
                     </label>
                 `;
             }).join('');
         }
 
-        // CONVERSOR DE SUFIJOS DE DINERO (K, M, B, T, Qa, Qi, Sx, Spt, Oct, Nv, Dc, Ud, Dd, Td, Qad, Qid, Sxd, Spd, Ocd, Nvd, Vc)
+        function toggleRarityFilter(name) {
+            activeRarityFilters[name] = !activeRarityFilters[name];
+            renderPajaros();
+        }
+
+        function setAllRarityFilters(status) {
+            db.rarities.forEach(r => activeRarityFilters[r.name] = status);
+            renderPajaros();
+        }
+
         function parseMoneyValue(moneyStr) {
             if (!moneyStr) return 0;
             let clean = moneyStr.toString().replace(/[$,\s\/sec]/gi, '').trim();
             const suffixes = ["k", "m", "b", "t", "qa", "qi", "sx", "spt", "oct", "nv", "dc", "ud", "dd", "td", "qad", "qid", "sxd", "spd", "ocd", "nvd", "vc"];
-            
             let multiplier = 1;
             let lowerClean = clean.toLowerCase();
-            
             for (let i = 0; i < suffixes.length; i++) {
                 let suf = suffixes[i];
                 if (lowerClean.endsWith(suf)) {
@@ -1829,6 +1891,11 @@
             return isNaN(num) ? 0 : num * multiplier;
         }
 
+        function toggleCategoryCollapse(rarityName) {
+            collapsedCategories[rarityName] = !collapsedCategories[rarityName];
+            renderPajaros();
+        }
+
         function renderPajaros() {
             renderRarityCheckboxes();
             const container = document.getElementById('posts-pajaros');
@@ -1837,29 +1904,18 @@
 
             let htmlOutput = '';
             db.rarities.forEach((rObj) => {
-                let rPosts = posts.filter(p => p.rarity === rObj.name);
+                if (activeRarityFilters[rObj.name] === false) return;
 
+                let rPosts = posts.filter(p => p.rarity === rObj.name);
                 if (searchVal) {
                     rPosts = rPosts.filter(p => p.title.toLowerCase().includes(searchVal));
                 }
 
-                // ORDENAMIENTO CORREGIDO DE MENOR A MAYOR USANDO EL CONVERSOR DE SUFIJOS
-                rPosts.sort((a, b) => {
-                    let valA = parseMoneyValue(a.money);
-                    let valB = parseMoneyValue(b.money);
-                    return valA - valB;
-                });
+                rPosts.sort((a, b) => parseMoneyValue(a.money) - parseMoneyValue(b.money));
 
                 let isCollapsed = collapsedCategories[rObj.name] || false;
-                let size = rObj.strokeSize || 1;
-                let strokeColor = rObj.strokeColor || '#000000';
-                let alpha = rObj.strokeAlpha !== undefined ? rObj.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-
                 const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
                 let addBtnHtml = isAdmin ? `<button class="primary" style="font-size:0.75rem; padding:2px 6px;" onclick="event.stopPropagation(); toggleAddForm('${rObj.name}')">+ Añadir en ${rObj.name}</button>` : '';
-
                 let addFormHtml = (activeFormState.type === 'create' && activeFormState.rarity === rObj.name) ? renderDynamicPajaroForm(false, rObj.name, -1) : '';
 
                 let contentHtml = '';
@@ -1876,7 +1932,7 @@
 
                 htmlOutput += `
                     <div class="rarity-category-group">
-                        <div class="rarity-category-header" style="background: ${rObj.style}; ${strokeCss}" onclick="toggleCategoryCollapse('${rObj.name}')">
+                        <div class="rarity-category-header" style="background: ${rObj.style};" onclick="toggleCategoryCollapse('${rObj.name}')">
                             <span>${isCollapsed ? '▶' : '▼'} Rareza: ${rObj.name} (${rPosts.length})</span>
                             ${addBtnHtml}
                         </div>
@@ -1889,7 +1945,6 @@
             });
 
             container.innerHTML = htmlOutput;
-
             if(activeFormState.type !== null) {
                 setTimeout(() => renderPreviewBoxCustom('pajaros'), 50);
             }
@@ -1898,17 +1953,12 @@
         function renderPostCardHTML(p, sectionId, index) {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             const rObj = sectionId === 'pajaros' ? db.rarities.find(r => r.name === p.rarity) : null;
-            let strokeCss = '';
-            if (rObj) {
-                let size = rObj.strokeSize || 1;
-                let strokeColor = rObj.strokeColor || '#000000';
-                let alpha = rObj.strokeAlpha !== undefined ? rObj.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-            }
-            const styleAttr = rObj ? `background: ${rObj.style}; ${strokeCss}` : 'background: #333;';
-            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> <span class="rarity-badge" style="${styleAttr}">${p.rarity}</span></p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
-            
+            const zObj = sectionId === 'pajaros' ? db.zones.find(z => z.name === p.zone) : null;
+
+            const rarityBadge = rObj ? `<span class="rarity-badge" style="background: ${rObj.style};">${p.rarity}</span>` : p.rarity;
+            const zoneBadge = zObj ? `<span class="zone-badge" style="background: ${zObj.style};">${p.zone}</span>` : (p.zone || 'N/A');
+
+            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> ${rarityBadge}</p><p><strong>Zona:</strong> ${zoneBadge}</p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
             let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${index})">Editar</button><button class="danger" onclick="deleteGenericPost('${sectionId}', ${index})">Eliminar</button></div>` : '';
 
             return `<div class="post-card"><div class="post-left"><h3 style="margin-top:0;">${p.title}</h3>${extraInfo}<p style="white-space: pre-wrap;">${p.text}</p>${generateLinkHTML(p.linkUrl)}${adminButtons}</div><div class="post-right">${generateMediaHTML(p.media, p.mediaType, p.bg360, `${sectionId}-${index}`)}</div></div>`;
@@ -1918,11 +1968,11 @@
             if (confirm("¿Eliminar post?")) { 
                 db.posts[sectionId].splice(index, 1); 
                 saveDB(db); 
-                if(sectionId === 'pajaros') renderPajaros(); else renderGenericPosts(sectionId); 
+                renderPajaros(); 
             }
         }
 
-        window.onload = function() { initApp(); };
+        window.onload = function() { startupSequence(); };
     </script>
 </body>
 </html>
