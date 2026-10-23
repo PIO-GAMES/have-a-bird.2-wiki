@@ -519,7 +519,7 @@
                 { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
             ],
             zones: [
-                { name: "Zona 1", style: "#36c", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 }
+                { name: "Zona 1", style: "#717171", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
             ],
             categories: [
                 { id: "nav", name: "Navegación" },
@@ -567,9 +567,8 @@
                 if (!data.posts) data.posts = defaultData.posts;
                 if (!data.singleContent) data.singleContent = defaultData.singleContent;
                 if (!data.rarities) data.rarities = defaultData.rarities;
-                if (!data.zones) data.zones = defaultData.zones || defaultData.zones;
+                if (!data.zones) data.zones = defaultData.zones || [{ name: "Zona 1", style: "#717171" }];
                 
-                // Asegurar que exista la sección de Zonas (tipo zones) en el sistema
                 if (!data.sections.some(s => s.id === 'zonas-sys')) {
                     data.sections.push({ id: "zonas-sys", name: "Zonas", type: "zones", catId: "sys" });
                 }
@@ -690,11 +689,11 @@
                         <h3 style="margin:0; border:none; padding:0;">${cat.name}</h3>
                         ${catDeleteBtn}
                     </div>
-                    <ul>
+                    <ul ondragover="allowDrop(event)" ondragleave="removeDropStyle(event)" ondrop="dropSection(event, '${cat.id}')">
                         ${catSections.map(sec => {
                             let secDeleteBtn = (isAdmin && sec.id !== 'rarezas' && sec.id !== 'zonas-sys') ? `<button class="danger" style="padding: 1px 4px; font-size:0.7rem;" onclick="deleteSection('${sec.id}')">X</button>` : '';
                             return `
-                                <li>
+                                <li draggable="true" ondragstart="dragStart(event, '${sec.id}')">
                                     <a onclick="switchSection('${sec.id}')">${sec.name}</a>
                                     ${secDeleteBtn}
                                 </li>
@@ -703,6 +702,18 @@
                     </ul>
                 `;
             }).join('');
+        }
+
+        let draggedSectionId = null;
+        function dragStart(event, sectionId) { draggedSectionId = sectionId; event.dataTransfer.setData('text/plain', sectionId); }
+        function allowDrop(event) { event.preventDefault(); event.currentTarget.classList.add('drag-over'); }
+        function removeDropStyle(event) { event.currentTarget.classList.remove('drag-over'); }
+        function dropSection(event, targetCatId) {
+            event.preventDefault(); event.currentTarget.classList.remove('drag-over');
+            if (!draggedSectionId) return;
+            const sec = db.sections.find(s => s.id === draggedSectionId);
+            if (sec) { sec.catId = targetCatId; saveDB(db); renderSidebar(); }
+            draggedSectionId = null;
         }
 
         function openCreateCategoryModal() {
@@ -799,7 +810,7 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             let adminForm = isAdmin ? `
                 <div class="admin-controls">
-                    <h3>Añadir Post en ${sec.name}</h3>
+                    <h3 id="form-title-${sec.id}">Añadir Post en ${sec.name}</h3>
                     <div class="form-group"><label>Título:</label><input type="text" id="post-title-${sec.id}"></div>
                     <div class="form-group"><label>Contenido:</label><textarea id="post-text-${sec.id}" rows="4"></textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
@@ -862,11 +873,7 @@
                 const file = fileInput.files[0];
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    activeMediaData[sectionId] = {
-                        data: e.target.result,
-                        type: file.type,
-                        name: file.name
-                    };
+                    activeMediaData[sectionId] = { data: e.target.result, type: file.type, name: file.name };
                     renderPreviewBoxCustom(sectionId);
                 };
                 reader.readAsDataURL(file);
@@ -914,8 +921,8 @@
 
             return `
                 <section class="section-content active">
-                    <h2>Zonas</h2>
-                    <p>Gestiona las zonas del juego con estilos visuales:</p>
+                    <h2>Zonas (Rarezas 2.0)</h2>
+                    <p>Gestiona las zonas del juego con estilos personalizados:</p>
                     <div id="zones-list"></div>
                     ${adminForm}
                 </section>
@@ -928,9 +935,9 @@
             if(!container) return;
             if(!db.zones) db.zones = [{ name: "Zona 1", style: "#36c" }];
             container.innerHTML = db.zones.map((z, i) => `
-                <div class="rarity-item" onclick="startEditZone(${i})">
+                <div class="zone-item" onclick="startEditZone(${i})">
                     <div>
-                        <span class="rarity-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
+                        <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
                         <span style="font-size: 0.85rem; color: #54595d; margin-left: 10px;">Estilo: <code>${z.style}</code></span>
                     </div>
                     ${isAdmin ? `<div><button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button></div>` : ''}
@@ -1030,13 +1037,6 @@
                     </div>
                 `;
             }).join('');
-        }
-
-        function hexToRgbStr(hex) {
-            let c = hex.replace('#','');
-            if(c.length===3) c = c.split('').map(x=>x+x).join('');
-            let num = parseInt(c,16);
-            return `${(num>>16)&255}, ${(num>>8)&255}, ${num&255}`;
         }
 
         function saveRarity() {
@@ -1300,42 +1300,6 @@
 
             if(activeFormState.type !== null) {
                 setTimeout(() => renderPreviewBoxCustom('pajaros'), 50);
-            }
-        }
-
-        function toggleCategoryCollapse(name) {
-            collapsedCategories[name] = !collapsedCategories[name];
-            renderPajaros();
-        }
-
-        function renderPostCardHTML(p, sectionId, index) {
-            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
-            const rObj = sectionId === 'pajaros' ? db.rarities.find(r => r.name === p.rarity) : null;
-            const zObj = sectionId === 'pajaros' && db.zones ? db.zones.find(z => z.name === p.zone) : null;
-            
-            let strokeCss = '';
-            if (rObj) {
-                let size = rObj.strokeSize || 1;
-                let strokeColor = rObj.strokeColor || '#000000';
-                let alpha = rObj.strokeAlpha !== undefined ? rObj.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-            }
-            const styleAttr = rObj ? `background: ${rObj.style}; ${strokeCss}` : 'background: #333;';
-            const zoneStyleAttr = zObj ? `background: ${zObj.style};` : 'background: #717171;';
-            
-            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> <span class="rarity-badge" style="${styleAttr}">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="${zoneStyleAttr}">${p.zone || 'Zona 1'}</span></p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
-            
-            let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${index})">Editar</button><button class="danger" onclick="deleteGenericPost('${sectionId}', ${index})">Eliminar</button></div>` : '';
-
-            return `<div class="post-card"><div class="post-left"><h3 style="margin-top:0;">${p.title}</h3>${extraInfo}<p style="white-space: pre-wrap;">${p.text}</p>${generateLinkHTML(p.linkUrl)}${adminButtons}</div><div class="post-right">${generateMediaHTML(p.media, p.mediaType, p.bg360, `${sectionId}-${index}`)}</div></div>`;
-        }
-
-        function deleteGenericPost(sectionId, index) {
-            if (confirm("¿Eliminar post?")) { 
-                db.posts[sectionId].splice(index, 1); 
-                saveDB(db); 
-                renderPajaros(); 
             }
         }
 
