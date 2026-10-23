@@ -443,6 +443,54 @@
             background-color: #fff;
         }
 
+        .color-picker-popup {
+            position: absolute;
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 15px;
+            z-index: 2000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            width: 320px;
+            display: none;
+            font-size: 0.85rem;
+        }
+        .roblox-palette {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 3px;
+            margin-bottom: 10px;
+        }
+        .roblox-swatch {
+            width: 22px;
+            height: 18px;
+            cursor: pointer;
+            border: 1px solid #444;
+        }
+        .roblox-main-picker {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        #roblox-sv-box {
+            width: 180px;
+            height: 130px;
+            position: relative;
+            cursor: crosshair;
+            background: linear-gradient(to right, #fff, hsl(0, 100%, 50%));
+        }
+        #roblox-sv-overlay {
+            position: absolute;
+            top:0; left:0; width:100%; height:100%;
+            background: linear-gradient(to top, #000, transparent);
+        }
+        #roblox-hue-slider {
+            width: 20px;
+            height: 130px;
+            cursor: pointer;
+            background: linear-gradient(to top, red, yellow, lime, cyan, blue, magenta, red);
+        }
+
         @keyframes rarityRotateAnim {
             0% { filter: hue-rotate(0deg); }
             100% { filter: hue-rotate(360deg); }
@@ -476,6 +524,19 @@
                 <button onclick="closeAuthModal()">Cancelar</button>
             </div>
             <p id="auth-error" style="color: red; font-size: 0.85rem; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <!-- PANEL FLOTANTE DE COLOR SÓLIDO -->
+    <div id="roblox-color-picker-popup" class="color-picker-popup">
+        <div style="font-weight: bold; margin-bottom: 5px;">Colores básicos</div>
+        <div class="roblox-palette" id="roblox-basic-palette"></div>
+        <div class="roblox-main-picker">
+            <div id="roblox-sv-box"><div id="roblox-sv-overlay"></div><div id="roblox-sv-cursor" style="width:8px;height:8px;border:1px solid #fff;position:absolute;transform:translate(-50%,-50%);pointer-events:none;"></div></div>
+            <div id="roblox-hue-slider"></div>
+        </div>
+        <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 5px;">
+            <button onclick="closeRobloxColorPicker()">Aceptar</button>
         </div>
     </div>
 
@@ -584,6 +645,20 @@
                     if (r.vecY === undefined) r.vecY = 0;
                     if (r.animRepeat === undefined) r.animRepeat = "infinity";
                 });
+
+                if (data.zones) {
+                    data.zones.forEach(z => {
+                        if (z.strokeColor === undefined) z.strokeColor = "#000000";
+                        if (z.strokeSize === undefined) z.strokeSize = 1;
+                        if (z.strokeAlpha === undefined) z.strokeAlpha = 1;
+                        if (z.animType === undefined) z.animType = "none";
+                        if (z.animSpeed === undefined) z.animSpeed = 1;
+                        if (z.animDir === undefined) z.animDir = "clockwise";
+                        if (z.vecX === undefined) z.vecX = 0;
+                        if (z.vecY === undefined) z.vecY = 0;
+                        if (z.animRepeat === undefined) z.animRepeat = "infinity";
+                    });
+                }
                 if (!data.users) data.users = [];
             }
 
@@ -792,6 +867,7 @@
                     <div class="form-group"><label>Título:</label><input type="text" id="single-title-${sec.id}"></div>
                     <div class="form-group"><label>Texto / Contenido:</label><textarea id="single-text-${sec.id}" rows="5"></textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="single-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="single-preview-${sec.id}"></div></div>
+                    <div class="form-group" id="single-bg360-group-${sec.id}" style="display:none;"><label>Fondo 360°:</label><input type="file" id="single-bg360-${sec.id}" accept="image/*" onchange="previewSingleBg360('${sec.id}')"><div id="single-bg360-preview-${sec.id}"></div></div>
                     <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="single-link-${sec.id}" placeholder="https://..."></div>
                     <button class="primary" onclick="saveSingleContent('${sec.id}')">Guardar Cambios</button>
                 </div>
@@ -811,10 +887,13 @@
             let adminForm = isAdmin ? `
                 <div class="admin-controls">
                     <h3 id="form-title-${sec.id}">Añadir Post en ${sec.name}</h3>
+                    <input type="hidden" id="edit-idx-${sec.id}" value="-1">
                     <div class="form-group"><label>Título:</label><input type="text" id="post-title-${sec.id}"></div>
                     <div class="form-group"><label>Contenido:</label><textarea id="post-text-${sec.id}" rows="4"></textarea></div>
-                    <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
-                    <button class="primary" onclick="saveGenericPost('${sec.id}')">Publicar</button>
+                    <div class="form-group"><label>Multimedia:</label><input type="file" id="post-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="post-preview-${sec.id}"></div></div>
+                    <div class="form-group" id="post-bg360-group-${sec.id}" style="display:none;"><label>Fondo 360°:</label><input type="file" id="post-bg360-${sec.id}" accept="image/*" onchange="previewGenericBg360('${sec.id}')"><div id="post-bg360-preview-${sec.id}"></div></div>
+                    <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="post-link-${sec.id}" placeholder="https://..."></div>
+                    <button class="primary" id="btn-submit-${sec.id}" onclick="saveGenericPost('${sec.id}')">Publicar</button>
                 </div>
             ` : '';
 
@@ -905,7 +984,7 @@
             renderPreviewBoxCustom(sectionId);
         }
 
-        // --- ZONAS (SISTEMA RAREZAS 2.0) ---
+        // --- ZONAS (Rarezas 2.0) ---
         function renderZonesSection() {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             let adminForm = isAdmin ? `
@@ -922,7 +1001,7 @@
             return `
                 <section class="section-content active">
                     <h2>Zonas (Rarezas 2.0)</h2>
-                    <p>Gestiona las zonas del juego con estilos personalizados:</p>
+                    <p>Gestiona las zonas del juego:</p>
                     <div id="zones-list"></div>
                     ${adminForm}
                 </section>
@@ -934,15 +1013,23 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             if(!container) return;
             if(!db.zones) db.zones = [{ name: "Zona 1", style: "#36c" }];
-            container.innerHTML = db.zones.map((z, i) => `
-                <div class="zone-item" onclick="startEditZone(${i})">
+            container.innerHTML = db.zones.map((z, i) => {
+                let adminButtons = isAdmin ? `
                     <div>
-                        <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
-                        <span style="font-size: 0.85rem; color: #54595d; margin-left: 10px;">Estilo: <code>${z.style}</code></span>
+                        <button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button>
+                        <button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button>
                     </div>
-                    ${isAdmin ? `<div><button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button></div>` : ''}
-                </div>
-            `).join('');
+                ` : '';
+                return `
+                    <div class="zone-item" onclick="startEditZone(${i})">
+                        <div>
+                            <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
+                            <span style="font-size: 0.85rem; color: #54595d; margin-left: 10px;">Estilo: <code>${z.style}</code></span>
+                        </div>
+                        ${adminButtons}
+                    </div>
+                `;
+            }).join('');
         }
 
         function saveZone() {
@@ -950,7 +1037,7 @@
             const style = document.getElementById('zn-style').value;
             if (!name || !style) { alert('Ingresa el nombre y el estilo.'); return; }
             const editIdx = parseInt(document.getElementById('zn-edit-index').value);
-            const zoneObj = { name, style };
+            const zoneObj = { name, style, strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise" };
             if (!db.zones) db.zones = [];
             if (editIdx >= 0) db.zones[editIdx] = zoneObj;
             else db.zones.push(zoneObj);
@@ -1084,6 +1171,24 @@
             }
         }
 
+        function generateLinkHTML(url) {
+            if (!url) return '';
+            let domain = "enlace externo";
+            let favicon = "https://www.google.com/s2/favicons?domain=example.com&sz=32";
+            let title = url;
+            let thumbHtml = '';
+            try {
+                const parsedUrl = new URL(url);
+                domain = parsedUrl.hostname;
+                favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
+                    title = "Video o Canal de YouTube";
+                    thumbHtml = `<img class="thumb" src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=120" alt="Portada">`;
+                } else { title = domain; }
+            } catch (e) {}
+            return `<a href="${url}" target="_blank" class="link-preview-card"><div class="link-header"><img src="${favicon}" alt="Favicon"><span>${domain}</span></div><div class="link-body">${thumbHtml}<div class="link-title">${title}</div></div></a>`;
+        }
+
         // --- PÁJAROS ---
         function renderDynamicPajaroForm(isEditing, targetRarity, editIndex) {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
@@ -1175,6 +1280,11 @@
 
         function toggleRarityFilter(name) {
             activeRarityFilters[name] = !activeRarityFilters[name];
+            renderPajaros();
+        }
+
+        function setAllRarityFilters(val) {
+            db.rarities.forEach(r => { activeRarityFilters[r.name] = val; });
             renderPajaros();
         }
 
@@ -1301,6 +1411,34 @@
             if(activeFormState.type !== null) {
                 setTimeout(() => renderPreviewBoxCustom('pajaros'), 50);
             }
+        }
+
+        function toggleCategoryCollapse(name) {
+            collapsedCategories[name] = !collapsedCategories[name];
+            renderPajaros();
+        }
+
+        function renderPostCardHTML(p, sectionId, index) {
+            const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
+            const rObj = sectionId === 'pajaros' ? db.rarities.find(r => r.name === p.rarity) : null;
+            const zObj = sectionId === 'pajaros' && db.zones ? db.zones.find(z => z.name === p.zone) : null;
+            
+            let strokeCss = '';
+            if (rObj) {
+                let size = rObj.strokeSize || 1;
+                let strokeColor = rObj.strokeColor || '#000000';
+                let alpha = rObj.strokeAlpha !== undefined ? rObj.strokeAlpha : 1;
+                let rgb = hexToRgbStr(strokeColor);
+                strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
+            }
+            const styleAttr = rObj ? `background: ${rObj.style}; ${strokeCss}` : 'background: #333;';
+            const zoneStyleAttr = zObj ? `background: ${zObj.style};` : 'background: #717171;';
+            
+            const extraInfo = sectionId === 'pajaros' ? `<p><strong>Rareza:</strong> <span class="rarity-badge" style="${styleAttr}">${p.rarity}</span> | <strong>Zona:</strong> <span class="zone-badge" style="${zoneStyleAttr}">${p.zone || 'Zona 1'}</span></p><p><strong>Dinero por seg:</strong> $${p.money}/sec</p>` : '';
+            
+            let adminButtons = isAdmin ? `<div style="margin-top: 15px; display: flex; gap: 10px;"><button onclick="toggleEditForm(${index})">Editar</button><button class="danger" onclick="deleteGenericPost('${sectionId}', ${index})">Eliminar</button></div>` : '';
+
+            return `<div class="post-card"><div class="post-left"><h3 style="margin-top:0;">${p.title}</h3>${extraInfo}<p style="white-space: pre-wrap;">${p.text}</p>${generateLinkHTML(p.linkUrl)}${adminButtons}</div><div class="post-right">${generateMediaHTML(p.media, p.mediaType, p.bg360, `${sectionId}-${index}`)}</div></div>`;
         }
 
         window.onload = function() { initApp(); };
