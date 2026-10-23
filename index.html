@@ -483,15 +483,6 @@
             cursor: pointer;
             background: linear-gradient(to top, red, yellow, lime, cyan, blue, magenta, red);
         }
-
-        @keyframes rarityRotateAnim {
-            0% { filter: hue-rotate(0deg); }
-            100% { filter: hue-rotate(360deg); }
-        }
-        @keyframes rarityFallAnim {
-            0% { background-position: 0% 0%; }
-            100% { background-position: 100% 100%; }
-        }
     </style>
 </head>
 <body>
@@ -568,14 +559,14 @@
             users: [],
             currentUser: null,
             rarities: [
-                { name: "Común", style: "#717171", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
-                { name: "Rara", style: "#0070dd", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
-                { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
-                { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
+                { name: "Común", style: "#717171", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
+                { name: "Rara", style: "#0070dd", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
+                { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
+                { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" }
             ],
             zones: [
-                { name: "Zona 1", style: "#4CAF50", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" },
-                { name: "Zona 2", style: "#2196F3", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none", animSpeed: 1, animDir: "clockwise", vecX: 0, vecY: 0, animRepeat: "infinity" }
+                { name: "Zona 1", style: "#4CAF50", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
+                { name: "Zona 2", style: "#2196F3", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" }
             ],
             categories: [
                 { id: "nav", name: "Navegación" },
@@ -599,16 +590,37 @@
             }
         };
 
-        // SISTEMA DE SINCRONIZACIÓN EN LA NUBE (JSONbin.io gratuito y público)
         const CLOUD_BIN_ID = "66f4b63cacd3cb34876b5d9b"; 
         const CLOUD_API_KEY = "$2a$10$QWJ2YjBjMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw"; 
-        
+
         let db = defaultData;
         let activeMediaData = {}; 
         let threeInstances = {}; 
         let activeRarityFilters = {}; 
         let collapsedCategories = {}; 
         let activeFormState = { type: null, rarity: null, editIndex: -1 };
+
+        // 1. CARGAR DATOS DESDE EL DISCO LOCAL PRIMERO (Tus versiones anteriores)
+        function loadLocalDB() {
+            let data = null;
+            const globalKey = 'have_a_bird_wiki_global_db_v1';
+            const savedGlobal = localStorage.getItem(globalKey);
+
+            if (savedGlobal) {
+                try { data = JSON.parse(savedGlobal); } catch(e){}
+            }
+
+            if (!data) {
+                for (let i = 5; i >= 1; i--) {
+                    const key = i === 5 ? 'have_a_bird_wiki_db_v5' : `have_a_bird_wiki_db_v${i}`;
+                    const saved = localStorage.getItem(key);
+                    if (saved) {
+                        try { data = JSON.parse(saved); break; } catch(e){}
+                    }
+                }
+            }
+            return data;
+        }
 
         async function fetchCloudDB() {
             try {
@@ -621,9 +633,7 @@
                         return json.record;
                     }
                 }
-            } catch(e) {
-                console.warn("No se pudo conectar a la nube, usando almacenamiento local de respaldo.");
-            }
+            } catch(e) {}
             return null;
         }
 
@@ -645,12 +655,12 @@
         }
 
         async function loadDB() {
-            let data = await fetchCloudDB();
+            // Buscamos primero en el disco local del navegador (tus datos originales)
+            let data = loadLocalDB();
+
             if (!data) {
-                const savedGlobal = localStorage.getItem('have_a_bird_wiki_global_db_v2');
-                if (savedGlobal) {
-                    try { data = JSON.parse(savedGlobal); } catch(e){}
-                }
+                // Si no hay local, intentamos traer de la nube
+                data = await fetchCloudDB();
             }
 
             if (!data) {
@@ -662,6 +672,11 @@
                 if (!data.singleContent) data.singleContent = defaultData.singleContent;
                 if (!data.rarities) data.rarities = defaultData.rarities;
                 if (!data.zones) data.zones = defaultData.zones;
+
+                // Asegurar que la sección y gestión de "Zonas" exista en el menú de sistema
+                if (!data.sections.some(s => s.id === 'zonas')) {
+                    data.sections.push({ id: "zonas", name: "Zonas", type: "zones", catId: "sys" });
+                }
 
                 data.rarities.forEach(r => {
                     if (r.strokeColor === undefined) r.strokeColor = "#000000";
@@ -687,13 +702,16 @@
             }
             data.currentUser = currentUsr;
             db = data;
+            
+            // Guardamos localmente y subimos tu información a la nube automáticamente
             saveDBLocalOnly(data);
+            saveCloudDB(data);
             return data;
         }
 
         function saveDBLocalOnly(data) {
             try {
-                localStorage.setItem('have_a_bird_wiki_global_db_v2', JSON.stringify(data));
+                localStorage.setItem('have_a_bird_wiki_global_db_v1', JSON.stringify(data));
                 if (data.currentUser) {
                     localStorage.setItem('have_a_bird_active_user', JSON.stringify(data.currentUser));
                 }
@@ -707,18 +725,15 @@
             saveCloudDB(data);
         }
 
-        // Bucle de sondeo automático cada 3 segundos para actualización en tiempo real en otros navegadores
+        // Bucle de sincronización en tiempo real cada 3 segundos
         setInterval(async () => {
             const cloudData = await fetchCloudDB();
             if (cloudData) {
-                // Comprobar si hay cambios comparando posts o rarezas
                 const currentStr = JSON.stringify(db.posts);
                 const cloudStr = JSON.stringify(cloudData.posts);
                 if (currentStr !== cloudStr) {
                     db = cloudData;
                     saveDBLocalOnly(db);
-                    const activeSec = document.querySelector('.section-content.active');
-                    // Refrescar vista actual si procede
                     initApp();
                 }
             }
@@ -744,7 +759,6 @@
             const errEl = document.getElementById('auth-error');
 
             if (!userIn) { errEl.innerText = "Introduce un nombre de usuario."; return; }
-
             const isTargetAdmin = (userIn === "MrPhoenixWiki");
 
             let user = db.users.find(u => u.username === userIn);
@@ -1029,25 +1043,8 @@
             }
         }
 
-        function previewPajaroBg360() {
-            const fileInput = document.getElementById('pj-bg360-file');
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData['pajaros']) activeMediaData['pajaros'] = {};
-                    activeMediaData['pajaros'].bg360 = e.target.result;
-                    const prev = document.getElementById('pj-bg360-preview-area');
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
         // GESTIÓN DE RAREZAS
         let activeColorInputTarget = null;
-        let currentGradientStops = [{pos: 0, color: '#000000'}, {pos: 1, color: '#ffffff'}];
-        let selectedStopIdx = 0;
         let draggedRarityIdx = null;
 
         function renderRaritiesSection() {
@@ -1057,49 +1054,8 @@
                     <h3 id="rarity-form-title">Crear / Editar Rareza</h3>
                     <input type="hidden" id="rz-edit-index" value="-1">
                     <div class="form-group"><label>Nombre de la Rareza:</label><input type="text" id="rz-name"></div>
-                    
-                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">Estilo de Fondo</legend>
-                        <div class="form-group" style="display:flex; gap:10px; margin-bottom:10px;">
-                            <button type="button" id="btn-mode-solid" class="primary" onclick="setRarityMode('solid')">Color Sólido</button>
-                            <button type="button" id="btn-mode-gradient" onclick="setRarityMode('gradient')">Gradiente</button>
-                        </div>
-                        <input type="hidden" id="rz-mode" value="solid">
-
-                        <div id="panel-mode-solid" class="form-group" style="margin-bottom:0;">
-                            <label>Color:</label>
-                            <input type="text" id="rz-solid-color" readonly style="cursor:pointer;" onclick="openRobloxColorPicker(this, event)">
-                        </div>
-
-                        <div id="panel-mode-gradient" class="form-group" style="display:none; margin-bottom:0;">
-                            <div style="display:flex; gap:10px; margin-bottom:10px;">
-                                <div style="flex:1;"><label>Tipo:</label>
-                                    <select id="rz-grad-type" onchange="updateGradientPreview()">
-                                        <option value="linear">Linear</option>
-                                        <option value="radial">Radial</option>
-                                        <option value="conical">Conical</option>
-                                    </select>
-                                </div>
-                                <div style="flex:1;"><label>Rotación (°):</label><input type="number" id="rz-grad-rotation" value="0" oninput="updateGradientPreview()"></div>
-                            </div>
-                            <div style="position:relative; height:35px; background:#333; border:1px solid #555; margin:10px 0; cursor:crosshair;" id="gradient-bar-container" onclick="addGradientStop(event)">
-                                <div id="gradient-stops-visual" style="position:absolute; width:100%; height:100%; pointer-events:none;"></div>
-                            </div>
-                            <div style="display:flex; gap:10px; align-items:center;">
-                                <button type="button" onclick="deleteSelectedStop()">Eliminar Punto</button>
-                                <span>Color del punto: <input type="text" id="rz-stop-color" readonly style="width:70px; display:inline-block; cursor:pointer;" onclick="openRobloxColorPicker(this, event)"></span>
-                            </div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">UI Stroke (Borde)</legend>
-                        <div style="display:flex; gap:10px;">
-                            <div style="flex:1;"><label>Color Borde:</label><input type="text" id="rz-stroke-color" readonly style="cursor:pointer; background:#000000; color:#fff;" onclick="openRobloxColorPicker(this, event)" value="#000000"></div>
-                            <div style="flex:1;"><label>Grosor (px):</label><input type="number" id="rz-stroke-size" value="1" min="0" max="10"></div>
-                        </div>
-                    </fieldset>
-
+                    <div class="form-group"><label>Color / Estilo (Ej: #717171 o gradiente):</label><input type="text" id="rz-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
+                    <div class="form-group"><label>Grosor del Borde (px):</label><input type="number" id="rz-stroke-size" value="1" min="0" max="10"></div>
                     <div style="margin-top:15px; display:flex; gap:10px;">
                         <button class="primary" onclick="saveRarity()">Guardar Rareza</button>
                         <button id="rz-cancel-btn" onclick="cancelEditRarity()" style="display:none;">Cancelar Edición</button>
@@ -1117,7 +1073,7 @@
             `;
         }
 
-        // GESTIÓN DE ZONAS (NUEVO REQUERIMIENTO)
+        // GESTIÓN DE ZONAS
         let draggedZoneIdx = null;
 
         function renderZonesSection() {
@@ -1127,49 +1083,8 @@
                     <h3 id="zone-form-title">Crear / Editar Zona</h3>
                     <input type="hidden" id="zn-edit-index" value="-1">
                     <div class="form-group"><label>Nombre de la Zona:</label><input type="text" id="zn-name"></div>
-                    
-                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">Estilo de Fondo de Zona</legend>
-                        <div class="form-group" style="display:flex; gap:10px; margin-bottom:10px;">
-                            <button type="button" id="zn-btn-mode-solid" class="primary" onclick="setZoneMode('solid')">Color Sólido</button>
-                            <button type="button" id="zn-btn-mode-gradient" onclick="setZoneMode('gradient')">Gradiente</button>
-                        </div>
-                        <input type="hidden" id="zn-mode" value="solid">
-
-                        <div id="zn-panel-mode-solid" class="form-group" style="margin-bottom:0;">
-                            <label>Color:</label>
-                            <input type="text" id="zn-solid-color" readonly style="cursor:pointer;" onclick="openRobloxColorPicker(this, event)">
-                        </div>
-
-                        <div id="zn-panel-mode-gradient" class="form-group" style="display:none; margin-bottom:0;">
-                            <div style="display:flex; gap:10px; margin-bottom:10px;">
-                                <div style="flex:1;"><label>Tipo:</label>
-                                    <select id="zn-grad-type" onchange="updateZoneGradientPreview()">
-                                        <option value="linear">Linear</option>
-                                        <option value="radial">Radial</option>
-                                        <option value="conical">Conical</option>
-                                    </select>
-                                </div>
-                                <div style="flex:1;"><label>Rotación (°):</label><input type="number" id="zn-grad-rotation" value="0" oninput="updateZoneGradientPreview()"></div>
-                            </div>
-                            <div style="position:relative; height:35px; background:#333; border:1px solid #555; margin:10px 0; cursor:crosshair;" id="zn-gradient-bar-container" onclick="addZoneGradientStop(event)">
-                                <div id="zn-gradient-stops-visual" style="position:absolute; width:100%; height:100%; pointer-events:none;"></div>
-                            </div>
-                            <div style="display:flex; gap:10px; align-items:center;">
-                                <button type="button" onclick="deleteZoneSelectedStop()">Eliminar Punto</button>
-                                <span>Color del punto: <input type="text" id="zn-stop-color" readonly style="width:70px; display:inline-block; cursor:pointer;" onclick="openRobloxColorPicker(this, event)"></span>
-                            </div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset style="border: 1px solid var(--border-color); padding: 10px; margin-bottom: 15px;">
-                        <legend style="font-weight: bold; font-size: 0.85rem;">UI Stroke (Borde)</legend>
-                        <div style="display:flex; gap:10px;">
-                            <div style="flex:1;"><label>Color Borde:</label><input type="text" id="zn-stroke-color" readonly style="cursor:pointer; background:#000000; color:#fff;" onclick="openRobloxColorPicker(this, event)" value="#000000"></div>
-                            <div style="flex:1;"><label>Grosor (px):</label><input type="number" id="zn-stroke-size" value="1" min="0" max="10"></div>
-                        </div>
-                    </fieldset>
-
+                    <div class="form-group"><label>Color / Estilo (Ej: #4CAF50 o gradiente):</label><input type="text" id="zn-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
+                    <div class="form-group"><label>Grosor del Borde (px):</label><input type="number" id="zn-stroke-size" value="1" min="0" max="10"></div>
                     <div style="margin-top:15px; display:flex; gap:10px;">
                         <button class="primary" onclick="saveZone()">Guardar Zona</button>
                         <button id="zn-cancel-btn" onclick="cancelEditZone()" style="display:none;">Cancelar Edición</button>
@@ -1180,7 +1095,7 @@
             return `
                 <section class="section-content active">
                     <h2>Zonas</h2>
-                    <p>Gestiona las zonas del juego con texto y gradiente de fondo:</p>
+                    <p>Gestiona las zonas del juego:</p>
                     <div id="zones-list"></div>
                     ${adminForm}
                 </section>
@@ -1209,158 +1124,6 @@
             saveDB(db);
             renderZonesList();
             draggedZoneIdx = null;
-        }
-
-        function setRarityMode(mode) {
-            document.getElementById('rz-mode').value = mode;
-            if (mode === 'solid') {
-                document.getElementById('btn-mode-solid').classList.add('primary');
-                document.getElementById('btn-mode-gradient').classList.remove('primary');
-                document.getElementById('panel-mode-solid').style.display = 'block';
-                document.getElementById('panel-mode-gradient').style.display = 'none';
-            } else {
-                document.getElementById('btn-mode-gradient').classList.add('primary');
-                document.getElementById('btn-mode-solid').classList.remove('primary');
-                document.getElementById('panel-mode-solid').style.display = 'none';
-                document.getElementById('panel-mode-gradient').style.display = 'block';
-                renderGradientBar();
-            }
-        }
-
-        function setZoneMode(mode) {
-            document.getElementById('zn-mode').value = mode;
-            if (mode === 'solid') {
-                document.getElementById('zn-btn-mode-solid').classList.add('primary');
-                document.getElementById('zn-btn-mode-gradient').classList.remove('primary');
-                document.getElementById('zn-panel-mode-solid').style.display = 'block';
-                document.getElementById('zn-panel-mode-gradient').style.display = 'none';
-            } else {
-                document.getElementById('zn-btn-mode-gradient').classList.add('primary');
-                document.getElementById('zn-btn-mode-solid').classList.remove('primary');
-                document.getElementById('zn-panel-mode-solid').style.display = 'none';
-                document.getElementById('zn-panel-mode-gradient').style.display = 'block';
-                renderZoneGradientBar();
-            }
-        }
-
-        function renderGradientBar() {
-            const container = document.getElementById('gradient-stops-visual');
-            if (!container) return;
-            let sortedStops = [...currentGradientStops].sort((a,b) => a.pos - b.pos);
-            let cssGrad = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-            container.parentElement.style.background = `linear-gradient(to right, ${cssGrad})`;
-
-            container.innerHTML = currentGradientStops.map((stop, idx) => `
-                <div style="position:absolute; left:${stop.pos * 100}%; top:0; width:14px; height:100%; transform:translateX(-50%); border:2px solid ${idx === selectedStopIdx ? '#ffff00' : '#fff'}; background:${stop.color}; cursor:ew-resize; pointer-events:auto;" onmousedown="startDragStop(${idx}, event)" onclick="selectGradientStop(${idx}, event)"></div>
-            `).join('');
-
-            if (currentGradientStops[selectedStopIdx]) {
-                document.getElementById('rz-stop-color').value = currentGradientStops[selectedStopIdx].color;
-                document.getElementById('rz-stop-color').style.background = currentGradientStops[selectedStopIdx].color;
-            }
-        }
-
-        let currentZoneGradientStops = [{pos: 0, color: '#000000'}, {pos: 1, color: '#ffffff'}];
-        let selectedZoneStopIdx = 0;
-        let draggingStopIdx = null;
-
-        function renderZoneGradientBar() {
-            const container = document.getElementById('zn-gradient-stops-visual');
-            if (!container) return;
-            let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
-            let cssGrad = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-            container.parentElement.style.background = `linear-gradient(to right, ${cssGrad})`;
-
-            container.innerHTML = currentZoneGradientStops.map((stop, idx) => `
-                <div style="position:absolute; left:${stop.pos * 100}%; top:0; width:14px; height:100%; transform:translateX(-50%); border:2px solid ${idx === selectedZoneStopIdx ? '#ffff00' : '#fff'}; background:${stop.color}; cursor:ew-resize; pointer-events:auto;" onmousedown="startZoneDragStop(${idx}, event)" onclick="selectZoneGradientStop(${idx}, event)"></div>
-            `).join('');
-
-            if (currentZoneGradientStops[selectedZoneStopIdx]) {
-                document.getElementById('zn-stop-color').value = currentZoneGradientStops[selectedZoneStopIdx].color;
-                document.getElementById('zn-stop-color').style.background = currentZoneGradientStops[selectedZoneStopIdx].color;
-            }
-        }
-
-        function startDragStop(idx, event) {
-            event.stopPropagation();
-            draggingStopIdx = idx;
-            selectedStopIdx = idx;
-            window.onmousemove = onDragStop;
-            window.onmouseup = stopDragStop;
-        }
-        function onDragStop(e) {
-            if (draggingStopIdx === null) return;
-            const container = document.getElementById('gradient-bar-container').getBoundingClientRect();
-            let pos = (e.clientX - container.left) / container.width;
-            pos = Math.max(0, Math.min(1, pos));
-            currentGradientStops[draggingStopIdx].pos = pos;
-            renderGradientBar();
-        }
-        function stopDragStop() { draggingStopIdx = null; window.onmousemove = null; window.onmouseup = null; }
-        function selectGradientStop(idx, event) { event.stopPropagation(); selectedStopIdx = idx; renderGradientBar(); }
-        function addGradientStop(event) {
-            if (event.target !== event.currentTarget) return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            const pos = Math.max(0.01, Math.min(0.99, (event.clientX - rect.left) / rect.width));
-            currentGradientStops.push({ pos, color: '#ff0000' });
-            selectedStopIdx = currentGradientStops.length - 1;
-            renderGradientBar();
-        }
-        function deleteSelectedStop() {
-            if (currentGradientStops.length <= 2) { alert("Debe haber al menos 2 puntos."); return; }
-            currentGradientStops.splice(selectedStopIdx, 1);
-            selectedStopIdx = 0;
-            renderGradientBar();
-        }
-
-        function startZoneDragStop(idx, event) {
-            event.stopPropagation();
-            draggingStopIdx = idx;
-            selectedZoneStopIdx = idx;
-            window.onmousemove = onZoneDragStop;
-            window.onmouseup = stopZoneDragStop;
-        }
-        function onZoneDragStop(e) {
-            if (draggingStopIdx === null) return;
-            const container = document.getElementById('zn-gradient-bar-container').getBoundingClientRect();
-            let pos = (e.clientX - container.left) / container.width;
-            pos = Math.max(0, Math.min(1, pos));
-            currentZoneGradientStops[draggingStopIdx].pos = pos;
-            renderZoneGradientBar();
-        }
-        function stopZoneDragStop() { draggingStopIdx = null; window.onmousemove = null; window.onmouseup = null; }
-        function selectZoneGradientStop(idx, event) { event.stopPropagation(); selectedZoneStopIdx = idx; renderZoneGradientBar(); }
-        function addZoneGradientStop(event) {
-            if (event.target !== event.currentTarget) return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            const pos = Math.max(0.01, Math.min(0.99, (event.clientX - rect.left) / rect.width));
-            currentZoneGradientStops.push({ pos, color: '#ff0000' });
-            selectedZoneStopIdx = currentZoneGradientStops.length - 1;
-            renderZoneGradientBar();
-        }
-        function deleteZoneSelectedStop() {
-            if (currentZoneGradientStops.length <= 2) { alert("Debe haber al menos 2 puntos."); return; }
-            currentZoneGradientStops.splice(selectedZoneStopIdx, 1);
-            selectedZoneStopIdx = 0;
-            renderZoneGradientBar();
-        }
-
-        function updateGradientPreview() {
-            let type = document.getElementById('rz-grad-type').value;
-            let rot = document.getElementById('rz-grad-rotation').value || 0;
-            let sortedStops = [...currentGradientStops].sort((a,b) => a.pos - b.pos);
-            let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-            let finalCss = type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
-            if(activeColorInputTarget && activeColorInputTarget.id === 'rz-stop-color') activeColorInputTarget.value = finalCss;
-        }
-
-        function updateZoneGradientPreview() {
-            let type = document.getElementById('zn-grad-type').value;
-            let rot = document.getElementById('zn-grad-rotation').value || 0;
-            let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
-            let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-            let finalCss = type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
-            if(activeColorInputTarget && activeColorInputTarget.id === 'zn-stop-color') activeColorInputTarget.value = finalCss;
         }
 
         function initRobloxPickerUI() {
@@ -1417,13 +1180,6 @@
             if(activeColorInputTarget) {
                 activeColorInputTarget.value = hex;
                 activeColorInputTarget.style.background = hex;
-                if(activeColorInputTarget.id === 'rz-stop-color') {
-                    currentGradientStops[selectedStopIdx].color = hex;
-                    renderGradientBar();
-                } else if(activeColorInputTarget.id === 'zn-stop-color') {
-                    currentZoneGradientStops[selectedZoneStopIdx].color = hex;
-                    renderZoneGradientBar();
-                }
             }
         }
 
@@ -1431,13 +1187,6 @@
             if(activeColorInputTarget) {
                 activeColorInputTarget.value = hex;
                 activeColorInputTarget.style.background = hex;
-                if(activeColorInputTarget.id === 'rz-stop-color') {
-                    currentGradientStops[selectedStopIdx].color = hex;
-                    renderGradientBar();
-                } else if(activeColorInputTarget.id === 'zn-stop-color') {
-                    currentZoneGradientStops[selectedZoneStopIdx].color = hex;
-                    renderZoneGradientBar();
-                }
             }
         }
 
@@ -1478,18 +1227,11 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             if(!container) return;
             container.innerHTML = db.rarities.map((r, i) => {
-                let size = r.strokeSize || 1;
-                let strokeColor = r.strokeColor || '#000000';
-                let alpha = r.strokeAlpha !== undefined ? r.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-
                 let adminButtons = isAdmin ? `<div><button onclick="event.stopPropagation(); startEditRarity(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteRarity(${i})">Eliminar</button></div>` : '';
-
                 return `
                     <div class="rarity-item" draggable="true" ondragstart="rDragStart(event, ${i})" ondragover="rDragOver(event)" ondrop="rDrop(event, ${i})" onclick="startEditRarity(${i})">
                         <div>
-                            <span class="rarity-badge" style="background: ${r.style}; color: #ffffff !important; ${strokeCss}">${i+1}. ${r.name}</span>
+                            <span class="rarity-badge" style="background: ${r.style}; color: #ffffff !important;">${i+1}. ${r.name}</span>
                         </div>
                         ${adminButtons}
                     </div>
@@ -1502,18 +1244,11 @@
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
             if(!container) return;
             container.innerHTML = db.zones.map((z, i) => {
-                let size = z.strokeSize || 1;
-                let strokeColor = z.strokeColor || '#000000';
-                let alpha = z.strokeAlpha !== undefined ? z.strokeAlpha : 1;
-                let rgb = hexToRgbStr(strokeColor);
-                let strokeCss = `text-shadow: ${size}px 0 rgba(${rgb}, ${alpha}), -${size}px 0 rgba(${rgb}, ${alpha}), 0 ${size}px rgba(${rgb}, ${alpha}), 0 -${size}px rgba(${rgb}, ${alpha});`;
-
                 let adminButtons = isAdmin ? `<div><button onclick="event.stopPropagation(); startEditZone(${i})">Editar</button><button class="danger" onclick="event.stopPropagation(); deleteZone(${i})">Eliminar</button></div>` : '';
-
                 return `
                     <div class="zone-item" draggable="true" ondragstart="zDragStart(event, ${i})" ondragover="zDragOver(event)" ondrop="zDrop(event, ${i})" onclick="startEditZone(${i})">
                         <div>
-                            <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important; ${strokeCss}">${i+1}. ${z.name}</span>
+                            <span class="zone-badge" style="background: ${z.style}; color: #ffffff !important;">${i+1}. ${z.name}</span>
                         </div>
                         ${adminButtons}
                     </div>
@@ -1521,30 +1256,14 @@
             }).join('');
         }
 
-        function hexToRgbStr(hex) {
-            let c = hex.replace('#','');
-            if(c.length===3) c = c.split('').map(x=>x+x).join('');
-            let num = parseInt(c,16);
-            return `${(num>>16)&255}, ${(num>>8)&255}, ${num&255}`;
-        }
-
         function saveRarity() {
             const name = document.getElementById('rz-name').value;
-            const mode = document.getElementById('rz-mode').value;
-            const strokeColor = document.getElementById('rz-stroke-color').value;
+            const style = document.getElementById('rz-solid-color').value || '#717171';
             const strokeSize = parseFloat(document.getElementById('rz-stroke-size').value) || 1;
-
-            let style = mode === 'solid' ? (document.getElementById('rz-solid-color').value || '#717171') : (() => {
-                let type = document.getElementById('rz-grad-type').value;
-                let rot = document.getElementById('rz-grad-rotation').value || 0;
-                let sortedStops = [...currentGradientStops].sort((a,b) => a.pos - b.pos);
-                let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-                return type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
-            })();
 
             if (!name) { alert('Ingresa el nombre.'); return; }
             const editIdx = parseInt(document.getElementById('rz-edit-index').value);
-            const rarityObj = { name, style, strokeColor, strokeSize, strokeAlpha: 1, animType: 'none' };
+            const rarityObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1, animType: 'none' };
 
             if (editIdx >= 0) db.rarities[editIdx] = rarityObj;
             else db.rarities.push(rarityObj);
@@ -1556,21 +1275,12 @@
 
         function saveZone() {
             const name = document.getElementById('zn-name').value;
-            const mode = document.getElementById('zn-mode').value;
-            const strokeColor = document.getElementById('zn-stroke-color').value;
+            const style = document.getElementById('zn-solid-color').value || '#4CAF50';
             const strokeSize = parseFloat(document.getElementById('zn-stroke-size').value) || 1;
-
-            let style = mode === 'solid' ? (document.getElementById('zn-solid-color').value || '#4CAF50') : (() => {
-                let type = document.getElementById('zn-grad-type').value;
-                let rot = document.getElementById('zn-grad-rotation').value || 0;
-                let sortedStops = [...currentZoneGradientStops].sort((a,b) => a.pos - b.pos);
-                let stopsStr = sortedStops.map(s => `${s.color} ${s.pos * 100}%`).join(', ');
-                return type === 'linear' ? `linear-gradient(${rot}deg, ${stopsStr})` : (type === 'radial' ? `radial-gradient(circle, ${stopsStr})` : `conic-gradient(from ${rot}deg at 50% 50%, ${stopsStr})`);
-            })();
 
             if (!name) { alert('Ingresa el nombre de la zona.'); return; }
             const editIdx = parseInt(document.getElementById('zn-edit-index').value);
-            const zoneObj = { name, style, strokeColor, strokeSize, strokeAlpha: 1, animType: 'none' };
+            const zoneObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1, animType: 'none' };
 
             if (editIdx >= 0) db.zones[editIdx] = zoneObj;
             else db.zones.push(zoneObj);
@@ -1584,36 +1294,22 @@
             const r = db.rarities[index];
             document.getElementById('rz-edit-index').value = index;
             document.getElementById('rz-name').value = r.name;
-            document.getElementById('rz-stroke-color').value = r.strokeColor || '#000000';
+            document.getElementById('rz-solid-color').value = r.style;
+            document.getElementById('rz-solid-color').style.background = r.style;
             document.getElementById('rz-stroke-size').value = r.strokeSize || 1;
             document.getElementById('rarity-form-title').innerText = 'Editar Rareza: ' + r.name;
             document.getElementById('rz-cancel-btn').style.display = 'inline-block';
-
-            if (r.style.includes('gradient')) {
-                setRarityMode('gradient');
-            } else {
-                setRarityMode('solid');
-                document.getElementById('rz-solid-color').value = r.style;
-                document.getElementById('rz-solid-color').style.background = r.style;
-            }
         }
 
         function startEditZone(index) {
             const z = db.zones[index];
             document.getElementById('zn-edit-index').value = index;
             document.getElementById('zn-name').value = z.name;
-            document.getElementById('zn-stroke-color').value = z.strokeColor || '#000000';
+            document.getElementById('zn-solid-color').value = z.style;
+            document.getElementById('zn-solid-color').style.background = z.style;
             document.getElementById('zn-stroke-size').value = z.strokeSize || 1;
             document.getElementById('zone-form-title').innerText = 'Editar Zona: ' + z.name;
             document.getElementById('zn-cancel-btn').style.display = 'inline-block';
-
-            if (z.style.includes('gradient')) {
-                setZoneMode('gradient');
-            } else {
-                setZoneMode('solid');
-                document.getElementById('zn-solid-color').value = z.style;
-                document.getElementById('zn-solid-color').style.background = z.style;
-            }
         }
 
         function cancelEditRarity() {
@@ -1651,7 +1347,6 @@
             let domain = "enlace externo";
             let favicon = "https://www.google.com/s2/favicons?domain=example.com&sz=32";
             let title = url;
-            let thumbHtml = '';
             try {
                 const parsedUrl = new URL(url);
                 domain = parsedUrl.hostname;
@@ -1753,7 +1448,7 @@
             db.singleContent[sectionId] = { title, text, media: mediaData, mediaType: mediaType, bg360: bg360Data, linkUrl };
             saveDB(db);
             renderSingleContent(sectionId);
-            alert("Guardado correctamente en la nube!");
+            alert("Guardado correctamente!");
         }
 
         function toggleAddForm(rarityName) {
