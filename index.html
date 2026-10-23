@@ -328,12 +328,6 @@
             background: #fff;
         }
 
-        .media-container:fullscreen, .media-container:-webkit-full-screen {
-            width: 100vw !important;
-            height: 100vh !important;
-            background: #000;
-        }
-
         .link-preview-card {
             border: 1px solid var(--border-color);
             background: var(--box-bg);
@@ -365,13 +359,6 @@
             align-items: center;
             gap: 12px;
         }
-        .link-body img.thumb {
-            width: 80px;
-            height: 50px;
-            object-fit: cover;
-            border: 1px solid var(--border-color);
-            flex-shrink: 0;
-        }
         .link-title {
             font-weight: bold;
             color: var(--link-color);
@@ -388,7 +375,6 @@
             background: #fff;
             font-size: 0.85rem;
         }
-
         .preview-container img, .preview-container video {
             width: 60px;
             height: 60px;
@@ -424,9 +410,6 @@
             background: #fff;
             margin-bottom: 5px;
             cursor: grab;
-        }
-        .rarity-item:active, .zone-item:active {
-            cursor: grabbing;
         }
 
         .admin-controls {
@@ -530,7 +513,7 @@
             <div class="user-info">
                 Usuario: <strong id="current-user-display"></strong> 
                 <span id="admin-badge" style="color: #0645ad; font-weight: bold; display: none;">(Administrador)</span>
-                <span id="cloud-sync-status" style="font-size:0.75rem; color:green; margin-left:10px;">(Sincronizado ☁️)</span>
+                <span id="cloud-sync-status" style="font-size:0.75rem; color:green; margin-left:10px;">(Disco Local 💾)</span>
             </div>
         </header>
 
@@ -559,14 +542,14 @@
             users: [],
             currentUser: null,
             rarities: [
-                { name: "Común", style: "#717171", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
-                { name: "Rara", style: "#0070dd", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
-                { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
-                { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" }
+                { name: "Común", style: "#717171", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 },
+                { name: "Rara", style: "#0070dd", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 },
+                { name: "Épica", style: "#a335ee", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 },
+                { name: "Legendaria", style: "#ff8000", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 }
             ],
             zones: [
-                { name: "Zona 1", style: "#4CAF50", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" },
-                { name: "Zona 2", style: "#2196F3", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1, animType: "none" }
+                { name: "Zona 1", style: "#4CAF50", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 },
+                { name: "Zona 2", style: "#2196F3", strokeColor: "#000000", strokeSize: 1, strokeAlpha: 1 }
             ],
             categories: [
                 { id: "nav", name: "Navegación" },
@@ -600,7 +583,6 @@
         let collapsedCategories = {}; 
         let activeFormState = { type: null, rarity: null, editIndex: -1 };
 
-        // 1. CARGAR DATOS DESDE EL DISCO LOCAL PRIMERO (Tus versiones anteriores)
         function loadLocalDB() {
             let data = null;
             const globalKey = 'have_a_bird_wiki_global_db_v1';
@@ -629,17 +611,16 @@
                 });
                 if (response.ok) {
                     const json = await response.json();
-                    if (json && json.record) {
-                        return json.record;
-                    }
+                    if (json && json.record) return json.record;
                 }
-            } catch(e) {}
+            } catch(e) {
+                // Modo offline / sin red silencioso
+            }
             return null;
         }
 
         async function saveCloudDB(data) {
             try {
-                document.getElementById('cloud-sync-status').textContent = "(Sincronizando 🔄)";
                 await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`, {
                     method: 'PUT',
                     headers: {
@@ -648,18 +629,17 @@
                     },
                     body: JSON.stringify(data)
                 });
-                document.getElementById('cloud-sync-status').textContent = "(Sincronizado ☁️)";
+                const status = document.getElementById('cloud-sync-status');
+                if(status) status.textContent = "(Sincronizado ☁️)";
             } catch(e) {
-                document.getElementById('cloud-sync-status').textContent = "(Error red ⚠️)";
+                const status = document.getElementById('cloud-sync-status');
+                if(status) status.textContent = "(Disco Local 💾)";
             }
         }
 
         async function loadDB() {
-            // Buscamos primero en el disco local del navegador (tus datos originales)
             let data = loadLocalDB();
-
             if (!data) {
-                // Si no hay local, intentamos traer de la nube
                 data = await fetchCloudDB();
             }
 
@@ -673,7 +653,6 @@
                 if (!data.rarities) data.rarities = defaultData.rarities;
                 if (!data.zones) data.zones = defaultData.zones;
 
-                // Asegurar que la sección y gestión de "Zonas" exista en el menú de sistema
                 if (!data.sections.some(s => s.id === 'zonas')) {
                     data.sections.push({ id: "zonas", name: "Zonas", type: "zones", catId: "sys" });
                 }
@@ -682,13 +661,11 @@
                     if (r.strokeColor === undefined) r.strokeColor = "#000000";
                     if (r.strokeSize === undefined) r.strokeSize = 1;
                     if (r.strokeAlpha === undefined) r.strokeAlpha = 1;
-                    if (r.animType === undefined) r.animType = "none";
                 });
                 data.zones.forEach(z => {
                     if (z.strokeColor === undefined) z.strokeColor = "#000000";
                     if (z.strokeSize === undefined) z.strokeSize = 1;
                     if (z.strokeAlpha === undefined) z.strokeAlpha = 1;
-                    if (z.animType === undefined) z.animType = "none";
                 });
                 if (!data.users) data.users = [];
             }
@@ -703,7 +680,6 @@
             data.currentUser = currentUsr;
             db = data;
             
-            // Guardamos localmente y subimos tu información a la nube automáticamente
             saveDBLocalOnly(data);
             saveCloudDB(data);
             return data;
@@ -725,7 +701,6 @@
             saveCloudDB(data);
         }
 
-        // Bucle de sincronización en tiempo real cada 3 segundos
         setInterval(async () => {
             const cloudData = await fetchCloudDB();
             if (cloudData) {
@@ -737,7 +712,7 @@
                     initApp();
                 }
             }
-        }, 3000);
+        }, 5000);
 
         function openAuthModal() {
             document.getElementById('auth-modal').style.display = 'flex';
@@ -919,7 +894,6 @@
                     <div class="form-group"><label>Título:</label><input type="text" id="single-title-${sec.id}"></div>
                     <div class="form-group"><label>Texto / Contenido:</label><textarea id="single-text-${sec.id}" rows="5"></textarea></div>
                     <div class="form-group"><label>Multimedia:</label><input type="file" id="single-file-${sec.id}" accept="image/*,video/*,.glb,.gltf" onchange="previewFileCustom('${sec.id}')"><div id="single-preview-${sec.id}"></div></div>
-                    <div class="form-group" id="single-bg360-group-${sec.id}" style="display:none;"><label>Fondo 360°:</label><input type="file" id="single-bg360-${sec.id}" accept="image/*" onchange="previewSingleBg360('${sec.id}')"><div id="single-bg360-preview-${sec.id}"></div></div>
                     <div class="form-group"><label>Enlace Opcional:</label><input type="text" id="single-link-${sec.id}" placeholder="https://..."></div>
                     <button class="primary" onclick="saveSingleContent('${sec.id}')">Guardar Cambios</button>
                 </div>
@@ -969,19 +943,15 @@
         function previewFileCustom(sectionId) {
             const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
             const previewAreaId = sectionId === 'pajaros' ? 'pj-preview-area' : (sectionId.startsWith('single-') ? `single-preview-${sectionId}` : `post-preview-${sectionId}`);
-            const bg360GroupId = sectionId === 'pajaros' ? 'pj-bg360-group' : (sectionId.startsWith('single-') ? `single-bg360-group-${sectionId}` : `post-bg360-group-${sectionId}`);
 
             const fileInput = document.getElementById(fileInputId);
             const previewArea = document.getElementById(previewAreaId);
-            const bgGroup = document.getElementById(bg360GroupId);
 
             if (fileInput && fileInput.files && fileInput.files[0]) {
                 const file = fileInput.files[0];
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const is3D = file.name.endsWith('.glb') || file.name.endsWith('.gltf');
-                    if (bgGroup) bgGroup.style.display = is3D ? 'block' : 'none';
-
                     activeMediaData[sectionId] = {
                         data: e.target.result,
                         type: is3D ? 'model/gltf-binary' : file.type,
@@ -1018,34 +988,15 @@
         function removeActiveFileCustom(sectionId) {
             activeMediaData[sectionId] = null;
             const fileInputId = sectionId === 'pajaros' ? 'pj-media-file' : (sectionId.startsWith('single-') ? `single-file-${sectionId}` : `post-file-${sectionId}`);
-            const bg360GroupId = sectionId === 'pajaros' ? 'pj-bg360-group' : (sectionId.startsWith('single-') ? `single-bg360-group-${sectionId}` : `post-bg360-group-${sectionId}`);
-            
             const input = document.getElementById(fileInputId);
             if(input) input.value = '';
-            const bg = document.getElementById(bg360GroupId);
-            if(bg) bg.style.display = 'none';
-
             renderPreviewBoxCustom(sectionId);
         }
 
-        function previewSingleBg360(sectionId) {
-            const fileInput = document.getElementById(`single-bg360-${sectionId}`);
-            if (fileInput && fileInput.files && fileInput.files[0]) {
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!activeMediaData[sectionId]) activeMediaData[sectionId] = {};
-                    activeMediaData[sectionId].bg360 = e.target.result;
-                    const prev = document.getElementById(`single-bg360-preview-${sectionId}`);
-                    if(prev) prev.innerHTML = `<p style="color:green; font-size:0.8rem;">Fondo 360 cargado: ${file.name}</p>`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // GESTIÓN DE RAREZAS
+        // --- GESTIÓN AVANZADA DE RAREZAS Y ZONAS ---
         let activeColorInputTarget = null;
         let draggedRarityIdx = null;
+        let draggedZoneIdx = null;
 
         function renderRaritiesSection() {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
@@ -1053,12 +1004,12 @@
                 <div class="admin-controls">
                     <h3 id="rarity-form-title">Crear / Editar Rareza</h3>
                     <input type="hidden" id="rz-edit-index" value="-1">
-                    <div class="form-group"><label>Nombre de la Rareza:</label><input type="text" id="rz-name"></div>
-                    <div class="form-group"><label>Color / Estilo (Ej: #717171 o gradiente):</label><input type="text" id="rz-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
-                    <div class="form-group"><label>Grosor del Borde (px):</label><input type="number" id="rz-stroke-size" value="1" min="0" max="10"></div>
+                    <div class="form-group"><label>Nombre:</label><input type="text" id="rz-name"></div>
+                    <div class="form-group"><label>Estilo (Color o Gradiente ej: linear-gradient(90deg, #ff0000, #0000ff)):</label><input type="text" id="rz-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
+                    <div class="form-group"><label>Grosor Borde (px):</label><input type="number" id="rz-stroke-size" value="1" min="0" max="10"></div>
                     <div style="margin-top:15px; display:flex; gap:10px;">
                         <button class="primary" onclick="saveRarity()">Guardar Rareza</button>
-                        <button id="rz-cancel-btn" onclick="cancelEditRarity()" style="display:none;">Cancelar Edición</button>
+                        <button id="rz-cancel-btn" onclick="cancelEditRarity()" style="display:none;">Cancelar</button>
                     </div>
                 </div>
             ` : '';
@@ -1066,15 +1017,12 @@
             return `
                 <section class="section-content active">
                     <h2>Rarezas</h2>
-                    <p>Arrastra las rarezas para ordenar su jerarquía:</p>
+                    <p>Arrastra para ordenar su jerarquía:</p>
                     <div id="rarities-list"></div>
                     ${adminForm}
                 </section>
             `;
         }
-
-        // GESTIÓN DE ZONAS
-        let draggedZoneIdx = null;
 
         function renderZonesSection() {
             const isAdmin = db.currentUser ? (db.currentUser.username === "MrPhoenixWiki") : false;
@@ -1083,11 +1031,11 @@
                     <h3 id="zone-form-title">Crear / Editar Zona</h3>
                     <input type="hidden" id="zn-edit-index" value="-1">
                     <div class="form-group"><label>Nombre de la Zona:</label><input type="text" id="zn-name"></div>
-                    <div class="form-group"><label>Color / Estilo (Ej: #4CAF50 o gradiente):</label><input type="text" id="zn-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
-                    <div class="form-group"><label>Grosor del Borde (px):</label><input type="number" id="zn-stroke-size" value="1" min="0" max="10"></div>
+                    <div class="form-group"><label>Estilo (Color o Gradiente ej: linear-gradient(90deg, #4CAF50, #2196F3)):</label><input type="text" id="zn-solid-color" onclick="openRobloxColorPicker(this, event)"></div>
+                    <div class="form-group"><label>Grosor Borde (px):</label><input type="number" id="zn-stroke-size" value="1" min="0" max="10"></div>
                     <div style="margin-top:15px; display:flex; gap:10px;">
                         <button class="primary" onclick="saveZone()">Guardar Zona</button>
-                        <button id="zn-cancel-btn" onclick="cancelEditZone()" style="display:none;">Cancelar Edición</button>
+                        <button id="zn-cancel-btn" onclick="cancelEditZone()" style="display:none;">Cancelar</button>
                     </div>
                 </div>
             ` : '';
@@ -1095,7 +1043,7 @@
             return `
                 <section class="section-content active">
                     <h2>Zonas</h2>
-                    <p>Gestiona las zonas del juego:</p>
+                    <p>Gestiona las zonas del juego y sus gradientes:</p>
                     <div id="zones-list"></div>
                     ${adminForm}
                 </section>
@@ -1263,7 +1211,7 @@
 
             if (!name) { alert('Ingresa el nombre.'); return; }
             const editIdx = parseInt(document.getElementById('rz-edit-index').value);
-            const rarityObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1, animType: 'none' };
+            const rarityObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1 };
 
             if (editIdx >= 0) db.rarities[editIdx] = rarityObj;
             else db.rarities.push(rarityObj);
@@ -1280,7 +1228,7 @@
 
             if (!name) { alert('Ingresa el nombre de la zona.'); return; }
             const editIdx = parseInt(document.getElementById('zn-edit-index').value);
-            const zoneObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1, animType: 'none' };
+            const zoneObj = { name, style, strokeColor: "#000000", strokeSize, strokeAlpha: 1 };
 
             if (editIdx >= 0) db.zones[editIdx] = zoneObj;
             else db.zones.push(zoneObj);
@@ -1295,7 +1243,7 @@
             document.getElementById('rz-edit-index').value = index;
             document.getElementById('rz-name').value = r.name;
             document.getElementById('rz-solid-color').value = r.style;
-            document.getElementById('rz-solid-color').style.background = r.style;
+            document.getElementById('rz-solid-color').style.background = r.style.includes('gradient') ? '#222' : r.style;
             document.getElementById('rz-stroke-size').value = r.strokeSize || 1;
             document.getElementById('rarity-form-title').innerText = 'Editar Rareza: ' + r.name;
             document.getElementById('rz-cancel-btn').style.display = 'inline-block';
@@ -1306,7 +1254,7 @@
             document.getElementById('zn-edit-index').value = index;
             document.getElementById('zn-name').value = z.name;
             document.getElementById('zn-solid-color').value = z.style;
-            document.getElementById('zn-solid-color').style.background = z.style;
+            document.getElementById('zn-solid-color').style.background = z.style.includes('gradient') ? '#222' : z.style;
             document.getElementById('zn-stroke-size').value = z.strokeSize || 1;
             document.getElementById('zone-form-title').innerText = 'Editar Zona: ' + z.name;
             document.getElementById('zn-cancel-btn').style.display = 'inline-block';
